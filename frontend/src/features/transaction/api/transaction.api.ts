@@ -1,36 +1,119 @@
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface SplitMember {
+    id: string;
+    amountOwed: number;
+    amountPaid: number;
+    isSettled: boolean;
+    settlledAt?: string;
+    splitMethod: string;
+    user: { id: string; name?: string; email: string; avatarUrl?: string };
+}
+
 export interface Transaction {
     id: string;
     title: string;
+    originalTitle?: string;
+    note?: string;
     amount: number;
-    type: string;
-    source: string;
-    date: string;
+    currency: string;
+    type: 'EXPENSE' | 'INCOME' | 'TRANSFER';
     category: string;
+    source: string;
     isPersonal: boolean;
+    date: string;
+    splits: SplitMember[];
+    authorId: string;
+    deduplicated?: boolean;
 }
 
-export const getTransactions = async (userId: string): Promise<Transaction[]> => {
-    const response = await fetch(`${API_URL}/transactions?userId=${userId}`);
+export interface TransactionStats {
+    income: number;
+    expense: number;
+    net: number;
+    topCategories: Array<{ name: string; total: number }>;
+}
 
-    if (!response.ok) {
-        throw new Error('Failed to fetch transactions');
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+async function req<T>(url: string, options?: RequestInit): Promise<T> {
+    const res = await fetch(`${API_URL}${url}`, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Request failed: ${res.status}`);
     }
+    return res.json();
+}
 
-    return response.json();
+// ─── Transactions ─────────────────────────────────────────────────────────────
+
+export const getTransactions = async (
+    userId: string,
+    opts: { limit?: number; offset?: number; category?: string; type?: string } = {}
+): Promise<{ transactions: Transaction[]; total: number }> => {
+    const params = new URLSearchParams({ userId, limit: String(opts.limit || 50), offset: String(opts.offset || 0) });
+    if (opts.category) params.set('category', opts.category);
+    if (opts.type) params.set('type', opts.type);
+    return req(`/transactions?${params}`);
 };
 
-export const createTransaction = async (data: Partial<Transaction> & { authorId: string }) => {
-    const response = await fetch(`${API_URL}/transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
+export const createTransaction = async (data: {
+    title: string;
+    amount: number;
+    type?: string;
+    source?: string;
+    category?: string;
+    isPersonal?: boolean;
+    authorId: string;
+    note?: string;
+    groupId?: string;
+    date?: string;
+}): Promise<Transaction> => req('/transactions', { method: 'POST', body: JSON.stringify(data) });
 
-    if (!response.ok) {
-        throw new Error('Failed to create transaction');
-    }
+export const updateTransaction = async (
+    id: string,
+    data: { title?: string; note?: string; category?: string; isPersonal?: boolean }
+): Promise<Transaction> => req(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
-    return response.json();
+export const ingestSms = async (rawSms: string, authorId: string): Promise<Transaction & { deduplicated?: boolean }> =>
+    req('/transactions/sms', { method: 'POST', body: JSON.stringify({ rawSms, authorId }) });
+
+// ─── Splits ───────────────────────────────────────────────────────────────────
+
+export const addSplits = async (
+    transactionId: string,
+    splits: Array<{ userId: string; amountOwed: number }>,
+    method: 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES' = 'EQUAL'
+): Promise<SplitMember[]> =>
+    req(`/transactions/${transactionId}/splits`, { method: 'POST', body: JSON.stringify({ splits, method }) });
+
+export const settleSplit = async (splitId: string): Promise<SplitMember> =>
+    req(`/transactions/splits/${splitId}/settle`, { method: 'PATCH' });
+
+export const getDebtSummary = async (userId: string): Promise<{ splits: any[]; totalOwed: number }> =>
+    req(`/transactions/debts/${userId}`);
+
+// ─── Category Rules ───────────────────────────────────────────────────────────
+
+export const getCategoryRules = (userId: string) =>
+    req<any[]>(`/transactions/rules/${userId}`);
+
+export const createCategoryRule = (data: { userId: string; pattern: string; category: string; priority?: number }) =>
+    req('/transactions/rules', { method: 'POST', body: JSON.stringify(data) });
+
+export const deleteCategoryRule = (ruleId: string) =>
+    req(`/transactions/rules/${ruleId}`, { method: 'DELETE' });
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+export const getStats = async (userId: string, from?: string, to?: string): Promise<TransactionStats> => {
+    const params = new URLSearchParams({ userId });
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    return req(`/transactions/stats?${params}`);
 };

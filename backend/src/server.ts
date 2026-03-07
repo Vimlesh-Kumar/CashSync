@@ -1,25 +1,26 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import { registerAllFeatures } from './features';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-import { transactionRoutes } from './features/transaction';
-import { userRoutes } from './features/user';
-
+// ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
 
-app.use('/api/transactions', transactionRoutes);
-app.use('/api/users', userRoutes);
-
-app.get('/api/health', (req, res) => {
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/api/health', (_req, res) => {
     res.json({ status: 'OK', message: 'CashSync Backend is running' });
 });
 
+// ── Register all features ─────────────────────────────────────────────────────
+registerAllFeatures(app);
+
+// ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+    console.log(`🚀 CashSync server running on port ${port}`);
 });

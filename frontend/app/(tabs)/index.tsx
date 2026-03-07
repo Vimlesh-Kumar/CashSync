@@ -1,11 +1,12 @@
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Platform,
   Pressable,
-  ScrollView,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -14,458 +15,624 @@ import {
 import { useAuth } from "@/src/context/AuthContext";
 import {
   createTransaction,
+  getStats,
   getTransactions,
   Transaction,
-  TransactionCard,
+  TransactionStats,
 } from "@/src/features/transaction";
-import { getUserProfile } from "@/src/features/user";
+
+const ACCENT = "#4F8EF7";
+const GREEN = "#34D399";
+const RED = "#F87171";
+const PURPLE = "#9B59F5";
+const BG = "#0D1117";
+const CARD_BG = "#161D2C";
+const BORDER = "#1E2D46";
+const MUTED = "#4A5568";
+const TEXT_DIM = "#8B9AB3";
+
+// ─── Category Icons ──────────────────────────────────────────────────────────
+
+const CATEGORY_META: Record<string, { emoji: string; color: string }> = {
+  "Food & Groceries": { emoji: "🍔", color: "#FF6B6B" },
+  Subscriptions: { emoji: "🎬", color: "#FFD93D" },
+  Transport: { emoji: "🚗", color: "#4ECDC4" },
+  Salary: { emoji: "💰", color: GREEN },
+  Shopping: { emoji: "🛍️", color: "#C689C6" },
+  Healthcare: { emoji: "💊", color: "#F87171" },
+  Housing: { emoji: "🏠", color: "#60A5FA" },
+  Utilities: { emoji: "⚡", color: "#FBBF24" },
+  Telecom: { emoji: "📱", color: "#34D399" },
+  Investments: { emoji: "📈", color: PURPLE },
+  "Cash Withdrawal": { emoji: "🏧", color: MUTED },
+  Transfer: { emoji: "↔️", color: ACCENT },
+  General: { emoji: "💸", color: MUTED },
+};
+
+function getCategoryMeta(cat: string) {
+  return CATEGORY_META[cat] || CATEGORY_META["General"];
+}
+
+// ─── Mini Transaction Row ─────────────────────────────────────────────────────
+
+function TxRow({ tx }: { tx: Transaction }) {
+  const isCredit = tx.type === "INCOME";
+  const meta = getCategoryMeta(tx.category);
+  return (
+    <View style={txStyles.row}>
+      <View style={[txStyles.icon, { backgroundColor: meta.color + "20" }]}>
+        <Text style={txStyles.emoji}>{meta.emoji}</Text>
+      </View>
+      <View style={txStyles.info}>
+        <Text style={txStyles.title} numberOfLines={1}>
+          {tx.title}
+        </Text>
+        <Text style={txStyles.meta}>
+          {tx.category} ·{" "}
+          {new Date(tx.date).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+          })}
+        </Text>
+      </View>
+      <View style={txStyles.right}>
+        <Text style={[txStyles.amount, { color: isCredit ? GREEN : "#fff" }]}>
+          {isCredit ? "+" : "−"}₹{tx.amount.toLocaleString("en-IN")}
+        </Text>
+        {!tx.isPersonal && (
+          <View style={txStyles.sharedPill}>
+            <Text style={txStyles.sharedText}>Shared</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const txStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER + "55",
+  },
+  icon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  emoji: { fontSize: 20 },
+  info: { flex: 1, gap: 3 },
+  title: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  meta: { fontSize: 12, color: TEXT_DIM },
+  right: { alignItems: "flex-end", gap: 4 },
+  amount: { fontSize: 15, fontWeight: "700" },
+  sharedPill: {
+    backgroundColor: ACCENT + "22",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  sharedText: { fontSize: 10, color: ACCENT, fontWeight: "600" },
+});
+
+// ─── Stat Chip ────────────────────────────────────────────────────────────────
+
+function StatChip({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color: string;
+}) {
+  return (
+    <View style={chipStyles.wrap}>
+      <View style={[chipStyles.dot, { backgroundColor: color }]} />
+      <View>
+        <Text style={chipStyles.label}>{label}</Text>
+        <Text style={[chipStyles.value, { color }]}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+const chipStyles = StyleSheet.create({
+  wrap: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  label: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.4)",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  value: { fontSize: 17, fontWeight: "700" },
+});
+
+// ─── Category Bar ─────────────────────────────────────────────────────────────
+
+function CategoryBar({
+  stats,
+  total,
+}: {
+  stats: Array<{ name: string; total: number }>;
+  total: number;
+}) {
+  if (!stats.length || total === 0) return null;
+  const colors = [ACCENT, PURPLE, GREEN, "#F59E0B", RED, "#60A5FA"];
+  return (
+    <View style={{ gap: 10, marginTop: 4 }}>
+      {stats.slice(0, 4).map((s, i) => (
+        <View key={s.name} style={{ gap: 4 }}>
+          <View
+            style={{ flexDirection: "row", justifyContent: "space-between" }}
+          >
+            <Text style={{ color: TEXT_DIM, fontSize: 13 }}>
+              {getCategoryMeta(s.name).emoji} {s.name}
+            </Text>
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
+              ₹{s.total.toLocaleString("en-IN")}
+            </Text>
+          </View>
+          <View style={{ height: 4, backgroundColor: BORDER, borderRadius: 4 }}>
+            <View
+              style={{
+                height: 4,
+                width: `${Math.min((s.total / total) * 100, 100)}%`,
+                backgroundColor: colors[i % colors.length],
+                borderRadius: 4,
+              }}
+            />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
-  const [profile, setProfile] = useState<any>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    // user is guaranteed non-null here because AuthGate blocks unauthenticated access
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [stats, setStats] = useState<TransactionStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async (silent = false) => {
     if (!user) return;
+    try {
+      if (!silent) setLoading(true);
+      const [txRes, statsRes] = await Promise.all([
+        getTransactions(user.id, { limit: 20 }),
+        getStats(user.id),
+      ]);
 
-    const load = async () => {
-      try {
-        setLoading(true);
-
-        const [fetchedProfile, fetched] = await Promise.all([
-          getUserProfile(user.id),
-          getTransactions(user.id),
+      // Seed sample data if empty
+      if (txRes.transactions.length === 0) {
+        const seeds = [
+          {
+            title: "Swiggy",
+            amount: 349,
+            type: "EXPENSE",
+            isPersonal: false,
+            category: "Food & Groceries",
+            authorId: user.id,
+          },
+          {
+            title: "Salary Credit",
+            amount: 75000,
+            type: "INCOME",
+            isPersonal: true,
+            category: "Salary",
+            authorId: user.id,
+          },
+          {
+            title: "Netflix",
+            amount: 649,
+            type: "EXPENSE",
+            isPersonal: true,
+            category: "Subscriptions",
+            authorId: user.id,
+          },
+          {
+            title: "Uber Ride",
+            amount: 220,
+            type: "EXPENSE",
+            isPersonal: true,
+            category: "Transport",
+            authorId: user.id,
+          },
+        ];
+        await Promise.all(seeds.map((s) => createTransaction(s)));
+        const [refreshedTx, refreshedStats] = await Promise.all([
+          getTransactions(user.id, { limit: 20 }),
+          getStats(user.id),
         ]);
-
-        let txList = fetched;
-        if (fetched.length === 0) {
-          const [t1, t2] = await Promise.all([
-            createTransaction({
-              title: "Netflix",
-              amount: 14.99,
-              type: "EXPENSE",
-              category: "Subscription",
-              isPersonal: false,
-              authorId: user.id,
-            }),
-            createTransaction({
-              title: "Salary",
-              amount: 4500,
-              type: "INCOME",
-              category: "Salary",
-              isPersonal: true,
-              authorId: user.id,
-            }),
-          ]);
-          txList = [t2, t1];
-        }
-
-        setProfile(fetchedProfile);
-        setTransactions(txList);
-
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }).start();
-      } catch (err: any) {
-        setError(err.message || "Failed to load dashboard");
-      } finally {
-        setLoading(false);
+        setTransactions(refreshedTx.transactions);
+        setStats(refreshedStats);
+      } else {
+        setTransactions(txRes.transactions);
+        setStats(statsRes);
       }
-    };
 
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
     load();
   }, [user]);
 
   if (loading) {
     return (
-      <View style={styles.splash}>
+      <View style={[s.center, { backgroundColor: BG }]}>
         <LinearGradient
-          colors={["#0D1117", "#111827"]}
+          colors={[BG, "#111827"]}
           style={StyleSheet.absoluteFill}
         />
-        <View style={styles.logoMark}>
-          <Text style={styles.logoMarkText}>CS</Text>
+        <View style={s.logoMark}>
+          <Text style={s.logoText}>CS</Text>
         </View>
-        <ActivityIndicator color="#4F8EF7" style={{ marginTop: 24 }} />
-        <Text style={styles.loadingText}>Loading your dashboard…</Text>
+        <ActivityIndicator color={ACCENT} style={{ marginTop: 20 }} />
+        <Text style={{ color: MUTED, marginTop: 10, fontSize: 14 }}>
+          Loading your finances…
+        </Text>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.splash}>
-        <LinearGradient
-          colors={["#0D1117", "#111827"]}
-          style={StyleSheet.absoluteFill}
-        />
-        <Text style={styles.errorText}>⚠ {error}</Text>
-        <Pressable style={styles.retryBtn} onPress={signOut}>
-          <Text style={styles.retryBtnText}>Sign Out</Text>
+      <View style={[s.center, { backgroundColor: BG }]}>
+        <Text
+          style={{
+            color: RED,
+            fontSize: 16,
+            textAlign: "center",
+            marginHorizontal: 32,
+          }}
+        >
+          ⚠ {error}
+        </Text>
+        <Pressable style={s.btn} onPress={signOut}>
+          <Text style={s.btnText}>Sign Out</Text>
         </Pressable>
       </View>
     );
   }
 
-  const displayName = profile?.name || user?.name || "User";
-  const displayEmail = profile?.email || user?.email || "";
-  const totalBalance = 14_580.2; // replace with real balance later
-  const income = transactions
-    .filter((t) => t.type === "INCOME")
-    .reduce((s, t) => s + t.amount, 0);
-  const expense = transactions
-    .filter((t) => t.type === "EXPENSE")
-    .reduce((s, t) => s + t.amount, 0);
-
+  const displayName = user?.name || "User";
   const initials = displayName
     .split(" ")
     .map((n: string) => n[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
-
-  // Greeting based on time
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const netBalance = (stats?.income || 0) - (stats?.expense || 0);
 
   return (
-    <View style={styles.root}>
+    <View style={[s.root]}>
       <LinearGradient
-        colors={["#0D1117", "#111827", "#0D1117"]}
+        colors={[BG, "#111827", BG]}
         style={StyleSheet.absoluteFill}
       />
-      <View style={[styles.blob, styles.blobTop]} />
-      <View style={[styles.blob, styles.blobBottom]} />
+      <View
+        style={[s.blob, { top: -60, right: -60, backgroundColor: ACCENT }]}
+      />
+      <View
+        style={[
+          s.blob,
+          {
+            bottom: 100,
+            left: -50,
+            backgroundColor: PURPLE,
+            width: 200,
+            height: 200,
+          },
+        ]}
+      />
 
-      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ── Top Bar ── */}
-          <View style={styles.topBar}>
-            <View>
-              <Text style={styles.greeting}>{greeting} 👋</Text>
-              <Text style={styles.userName}>{displayName}</Text>
-            </View>
-            <View style={styles.topBarRight}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.logoutBtn,
-                  pressed && { borderColor: "#F87171" },
-                ]}
-                onPress={signOut}
-              >
-                <Text style={styles.logoutIcon}>⎋</Text>
-              </Pressable>
-            </View>
+      <Animated.ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              load(true);
+            }}
+            tintColor={ACCENT}
+          />
+        }
+      >
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <View>
+            <Text style={s.greeting}>{greeting} 👋</Text>
+            <Text style={s.userName}>{displayName}</Text>
           </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Pressable style={s.avatarCircle}>
+              <Text style={s.avatarText}>{initials}</Text>
+            </Pressable>
+            <Pressable style={s.iconBtn} onPress={signOut}>
+              <Text style={{ color: MUTED, fontSize: 15 }}>⎋</Text>
+            </Pressable>
+          </View>
+        </View>
 
-          {/* ── Balance Card ── */}
-          <View style={styles.balanceCard}>
-            <LinearGradient
-              colors={["#1A256B", "#0F1A4E"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[StyleSheet.absoluteFill, { borderRadius: 28 }]}
+        {/* ── Net Worth Card ── */}
+        <View style={s.balanceCard}>
+          <LinearGradient
+            colors={["#1A2580", "#0F1550"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+          />
+          <View style={s.cardGlow} />
+          <Text style={s.balLabel}>NET BALANCE</Text>
+          <Text
+            style={[s.balAmount, { color: netBalance >= 0 ? "#fff" : RED }]}
+          >
+            {netBalance >= 0 ? "+" : ""}₹
+            {Math.abs(netBalance).toLocaleString("en-IN", {
+              minimumFractionDigits: 2,
+            })}
+          </Text>
+          <Text style={s.balEmail}>{user?.email}</Text>
+
+          <View style={s.chipRow}>
+            <StatChip
+              label="Income"
+              value={`₹${(stats?.income || 0).toLocaleString("en-IN")}`}
+              color={GREEN}
             />
-            <View style={styles.cardGlow} />
-            <Text style={styles.balanceLabel}>TOTAL BALANCE</Text>
-            <Text style={styles.balanceAmount}>
-              $
-              {totalBalance.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
-            </Text>
-            <Text style={styles.balanceEmail}>{displayEmail}</Text>
+            <View style={s.divider} />
+            <StatChip
+              label="Expenses"
+              value={`₹${(stats?.expense || 0).toLocaleString("en-IN")}`}
+              color={RED}
+            />
+          </View>
+        </View>
 
-            <View style={styles.balanceStats}>
-              <View style={styles.statItem}>
-                <View
-                  style={[styles.statDot, { backgroundColor: "#34D399" }]}
-                />
-                <View>
-                  <Text style={styles.statLabel}>Income</Text>
-                  <Text style={[styles.statValue, { color: "#34D399" }]}>
-                    +${income.toFixed(2)}
-                  </Text>
-                </View>
+        {/* ── Quick Actions ── */}
+        <View style={s.quickRow}>
+          {[
+            { icon: "➕", label: "Add", color: ACCENT, action: () => {} },
+            { icon: "📲", label: "SMS", color: GREEN, action: () => {} },
+            { icon: "👥", label: "Split", color: PURPLE, action: () => {} },
+            {
+              icon: "📊",
+              label: "Analyse",
+              color: "#F59E0B",
+              action: () => {},
+            },
+          ].map((a) => (
+            <Pressable key={a.label} style={s.qa} onPress={a.action}>
+              <View style={[s.qaIcon, { backgroundColor: a.color + "22" }]}>
+                <Text style={{ fontSize: 20 }}>{a.icon}</Text>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <View
-                  style={[styles.statDot, { backgroundColor: "#F87171" }]}
-                />
-                <View>
-                  <Text style={styles.statLabel}>Expenses</Text>
-                  <Text style={[styles.statValue, { color: "#F87171" }]}>
-                    −${expense.toFixed(2)}
-                  </Text>
-                </View>
-              </View>
+              <Text style={s.qaLabel}>{a.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* ── Spending Breakdown ── */}
+        {stats?.topCategories && stats.topCategories.length > 0 && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Spending Breakdown</Text>
+            <CategoryBar stats={stats.topCategories} total={stats.expense} />
+          </View>
+        )}
+
+        {/* ── Recent Transactions ── */}
+        <View style={s.card}>
+          <View style={s.cardHeader}>
+            <Text style={s.cardTitle}>Recent Activity</Text>
+            <Pressable onPress={() => router.push("/(tabs)/explore")}>
+              <Text style={s.seeAll}>See all →</Text>
+            </Pressable>
+          </View>
+
+          {transactions.length === 0 ? (
+            <View style={s.empty}>
+              <Text style={{ fontSize: 36 }}>💸</Text>
+              <Text style={{ color: MUTED, marginTop: 8 }}>
+                No transactions yet
+              </Text>
             </View>
-          </View>
-
-          {/* ── Quick Actions ── */}
-          <View style={styles.quickActions}>
-            {[
-              { icon: "↑", label: "Send", color: "#4F8EF7" },
-              { icon: "↓", label: "Receive", color: "#34D399" },
-              { icon: "⊕", label: "Add", color: "#9B59F5" },
-              { icon: "⋯", label: "More", color: "#F59E0B" },
-            ].map((a) => (
-              <Pressable key={a.label} style={styles.quickAction}>
-                <View
-                  style={[styles.qaIcon, { backgroundColor: a.color + "22" }]}
-                >
-                  <Text style={[styles.qaEmoji, { color: a.color }]}>
-                    {a.icon}
-                  </Text>
-                </View>
-                <Text style={styles.qaLabel}>{a.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* ── Transactions ── */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Recent Activity</Text>
-              <Pressable>
-                <Text style={styles.seeAll}>See all</Text>
-              </Pressable>
-            </View>
-
-            {transactions.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>💸</Text>
-                <Text style={styles.emptyText}>No transactions yet</Text>
-              </View>
-            ) : (
-              transactions.map((t) => (
-                <TransactionCard key={t.id} transaction={t} />
-              ))
-            )}
-          </View>
-        </ScrollView>
-      </Animated.View>
+          ) : (
+            transactions.slice(0, 5).map((tx) => <TxRow key={tx.id} tx={tx} />)
+          )}
+        </View>
+      </Animated.ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0D1117" },
-  splash: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0D1117",
-    gap: 12,
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: BG },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
+  blob: {
+    position: "absolute",
+    borderRadius: 999,
+    opacity: 0.08,
+    width: 280,
+    height: 280,
   },
-  loadingText: { color: "#4A5568", fontSize: 14, marginTop: 8 },
-  errorText: {
-    color: "#F87171",
-    fontSize: 16,
-    textAlign: "center",
-    paddingHorizontal: 32,
-    marginBottom: 16,
-  },
-  retryBtn: {
-    backgroundColor: "#F87171",
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  retryBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-
-  blob: { position: "absolute", borderRadius: 999, opacity: 0.1 },
-  blobTop: {
-    width: 300,
-    height: 300,
-    backgroundColor: "#4F8EF7",
-    top: -60,
-    right: -60,
-  },
-  blobBottom: {
-    width: 200,
-    height: 200,
-    backgroundColor: "#9B59F5",
-    bottom: 80,
-    left: -40,
-  },
-
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "web" ? 40 : 60,
-    paddingBottom: 100,
-    maxWidth: 600,
+  scroll: {
+    paddingHorizontal: 18,
+    paddingTop: Platform.OS === "web" ? 40 : 58,
+    paddingBottom: 110,
+    maxWidth: 640,
     alignSelf: "center",
     width: "100%",
   },
 
-  // Top bar
-  topBar: {
+  // Header
+  header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 28,
+    marginBottom: 24,
   },
-  greeting: { fontSize: 13, color: "#4A5568", marginBottom: 4 },
+  greeting: { fontSize: 13, color: MUTED, marginBottom: 4 },
   userName: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -0.3,
+    color: "#fff",
+    letterSpacing: -0.4,
   },
-  topBarRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   avatarCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#4F8EF7",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#1E2D46",
+    borderColor: BORDER,
   },
-  avatarText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  logoutBtn: {
+  avatarText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  iconBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#161D2C",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
-    borderColor: "#1E2D46",
+    borderColor: BORDER,
     alignItems: "center",
     justifyContent: "center",
   },
-  logoutIcon: { color: "#4A5568", fontSize: 18 },
 
   // Balance card
   balanceCard: {
-    borderRadius: 28,
-    padding: 28,
-    marginBottom: 20,
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 18,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#1E3A8A22",
     ...Platform.select({
-      web: { boxShadow: "0 20px 60px rgba(79, 142, 247, 0.2)" },
+      web: { boxShadow: "0 16px 48px rgba(79,142,247,0.2)" },
       default: {
-        shadowColor: "#4F8EF7",
-        shadowOffset: { width: 0, height: 12 },
+        shadowColor: ACCENT,
+        shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.2,
-        shadowRadius: 24,
+        shadowRadius: 20,
         elevation: 8,
       },
     }),
   },
   cardGlow: {
     position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: "#4F8EF7",
-    opacity: 0.12,
-    top: -40,
-    right: -20,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: ACCENT,
+    opacity: 0.1,
+    top: -50,
+    right: -30,
   },
-  balanceLabel: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.45)",
-    fontWeight: "700",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  balanceAmount: {
-    fontSize: 44,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -1,
-    marginBottom: 6,
-  },
-  balanceEmail: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.3)",
-    marginBottom: 24,
-  },
-  balanceStats: { flexDirection: "row", alignItems: "center", gap: 16 },
-  statItem: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  statDot: { width: 8, height: 8, borderRadius: 4 },
-  statLabel: {
+  balLabel: {
     fontSize: 11,
     color: "rgba(255,255,255,0.4)",
-    letterSpacing: 0.3,
-    marginBottom: 2,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    marginBottom: 6,
   },
-  statValue: { fontSize: 16, fontWeight: "700" },
-  statDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: "rgba(255,255,255,0.08)",
+  balAmount: {
+    fontSize: 42,
+    fontWeight: "800",
+    letterSpacing: -1,
+    marginBottom: 4,
   },
+  balEmail: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginBottom: 20 },
+  chipRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  divider: { width: 1, height: 40, backgroundColor: "rgba(255,255,255,0.07)" },
 
   // Quick actions
-  quickActions: {
+  quickRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 28,
+    marginBottom: 20,
     gap: 10,
   },
-  quickAction: { flex: 1, alignItems: "center", gap: 8 },
+  qa: { flex: 1, alignItems: "center", gap: 8 },
   qaIcon: {
-    width: 56,
-    height: 56,
+    width: 58,
+    height: 58,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
-  qaEmoji: { fontSize: 22, fontWeight: "800" },
-  qaLabel: { fontSize: 12, color: "#4A5568", fontWeight: "600" },
+  qaLabel: { fontSize: 11, color: MUTED, fontWeight: "600" },
 
-  // Sections
-  section: { marginBottom: 24 },
-  sectionHeader: {
+  // Card
+  card: {
+    backgroundColor: CARD_BG,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
   },
-  sectionTitle: { fontSize: 18, fontWeight: "700", color: "#FFFFFF" },
-  seeAll: { fontSize: 14, color: "#4F8EF7", fontWeight: "600" },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  seeAll: { fontSize: 13, color: ACCENT, fontWeight: "600" },
 
-  // Empty state
-  emptyState: { alignItems: "center", paddingVertical: 40, gap: 12 },
-  emptyIcon: { fontSize: 36 },
-  emptyText: { color: "#3D4E68", fontSize: 15, fontWeight: "500" },
+  // Empty
+  empty: { alignItems: "center", paddingVertical: 32 },
 
-  // Splash logo
+  // Splash
   logoMark: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: "#4F8EF7",
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
   },
-  logoMarkText: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: 1,
+  logoText: { fontSize: 24, fontWeight: "800", color: "#fff" },
+  btn: {
+    backgroundColor: RED,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 16,
   },
+  btnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });

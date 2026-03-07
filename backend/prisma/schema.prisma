@@ -6,25 +6,38 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id         String   @id @default(uuid())
-  email      String   @unique
-  name       String?
-  password   String? // Optional for OAuth
-  provider   String // GOOGLE, APPLE, or JWT
-  providerId String? // Optional for JWT
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+// ─────────────────────────────────────────────
+// USER & AUTH
+// ─────────────────────────────────────────────
 
-  transactions Transaction[] // Transactions authored by this user
-  memberships  GroupMember[]
-  splits       Split[] // Amounts owed by this user
+model User {
+  id         String  @id @default(uuid())
+  email      String  @unique
+  name       String?
+  avatarUrl  String?
+  password   String? // Optional — only for JWT/email auth
+  provider   String // GOOGLE | APPLE | JWT
+  providerId String? // OAuth subject ID (optional for JWT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions  Transaction[]
+  memberships   GroupMember[]
+  splits        Split[]
+  categoryRules CategoryRule[] // user-defined auto-tag rules
+  smsTemplates  SmsTemplate[] // user-saved SMS parser templates
 }
+
+// ─────────────────────────────────────────────
+// GROUPS & SPLITTING
+// ─────────────────────────────────────────────
 
 model Group {
   id          String   @id @default(uuid())
   name        String
   description String?
+  emoji       String? // e.g. "🏖" for "Goa Trip"
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -36,32 +49,41 @@ model GroupMember {
   id       String   @id @default(uuid())
   userId   String
   groupId  String
-  role     String   @default("MEMBER") // ADMIN or MEMBER
+  role     String   @default("MEMBER") // ADMIN | MEMBER
   joinedAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id])
-  group Group @relation(fields: [groupId], references: [id])
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([userId, groupId])
 }
 
+// ─────────────────────────────────────────────
+// TRANSACTIONS
+// ─────────────────────────────────────────────
+
 model Transaction {
   id       String   @id @default(uuid())
   title    String
+  note     String? // User-editable memo / renamed label
   amount   Float
-  currency String   @default("USD")
-  category String? // Automatically generated or manual
+  currency String   @default("INR")
   date     DateTime @default(now())
 
-  type   String @default("EXPENSE") // EXPENSE, INCOME, TRANSFER
-  source String @default("MANUAL") // MANUAL, SMS, EMAIL, API
+  // Classification
+  type     String @default("EXPENSE") // EXPENSE | INCOME | TRANSFER
+  category String @default("General") // auto-tagged or manual
+  source   String @default("MANUAL") // MANUAL | SMS | EMAIL | API
 
-  // Fingerprinting for Deduplication
-  sourceId String? // Original ID from Bank or SMS
-  hash     String? // Fingerprint hash for deduplication
+  // Deduplication fingerprinting
+  sourceId String? // original reference/txn ID from bank
+  hash     String? // composite fingerprint for dedup
 
   // Privacy
-  isPersonal Boolean @default(false)
+  isPersonal Boolean @default(true)
+
+  // Renaming history
+  originalTitle String? // stores the raw bank SMS/email title
 
   // Relations
   authorId String
@@ -75,8 +97,13 @@ model Transaction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([sourceId, amount, date])
+  @@unique([hash])
+  @@index([authorId, date])
 }
+
+// ─────────────────────────────────────────────
+// SPLITTING
+// ─────────────────────────────────────────────
 
 model Split {
   id            String @id @default(uuid())
@@ -84,9 +111,55 @@ model Split {
   userId        String
 
   amountOwed Float
-  amountPaid Float   @default(0.0)
-  isSettled  Boolean @default(false)
+  amountPaid Float     @default(0.0)
+  isSettled  Boolean   @default(false)
+  settledAt  DateTime?
 
-  transaction Transaction @relation(fields: [transactionId], references: [id])
+  splitMethod String @default("EQUAL") // EQUAL | EXACT | PERCENT | SHARES
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   user        User        @relation(fields: [userId], references: [id])
+
+  @@index([transactionId])
+}
+
+// ─────────────────────────────────────────────
+// SMART CATEGORIZATION
+// ─────────────────────────────────────────────
+
+// User-defined + system rules for auto-tagging
+model CategoryRule {
+  id       String @id @default(uuid())
+  userId   String
+  pattern  String // regex or keyword e.g. "SWIGGY|ZOMATO"
+  category String // e.g. "Food & Drinks"
+  priority Int    @default(0) // higher = checked first
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// SMS PARSING
+// ─────────────────────────────────────────────
+
+model SmsTemplate {
+  id          String  @id @default(uuid())
+  userId      String
+  bankName    String
+  pattern     String // regex template
+  amountKey   String // capture group name
+  typeKey     String // DEBIT | CREDIT keyword
+  merchantKey String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SmsLog {
+  id         String   @id @default(uuid())
+  rawSms     String
+  parsedJson String? // JSON of extracted fields
+  success    Boolean
+  createdAt  DateTime @default(now())
 }

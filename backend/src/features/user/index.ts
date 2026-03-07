@@ -1,3 +1,6 @@
-export * from './user.controller';
-export { default as userRoutes } from './user.routes';
+export { default as userRouter } from './userApi';
+export * from './userController';
+export * from './userRepository';
+export * from './userSchema';
+export * from './userService';
 

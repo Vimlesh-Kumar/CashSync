@@ -1,3 +1,6 @@
-export * from './transaction.controller';
-export { default as transactionRoutes } from './transaction.routes';
+export { default as transactionRouter } from './transactionApi';
+export * from './transactionController';
+export * from './transactionRepository';
+export * from './transactionSchema';
+export * from './transactionService';
 
