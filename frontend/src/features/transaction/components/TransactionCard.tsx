@@ -1,0 +1,121 @@
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { Transaction } from "../api/transaction.api";
+
+// Simple category to icon/color matcher
+const getCategoryIcon = (category: string) => {
+  switch (category.toLowerCase()) {
+    case "food":
+      return { emoji: "🍔", color: "#FF6B6B" };
+    case "travel":
+      return { emoji: "✈️", color: "#4ECDC4" };
+    case "subscription":
+      return { emoji: "🎬", color: "#FFD93D" };
+    case "salary":
+      return { emoji: "💰", color: "#6BCB77" };
+    case "shopping":
+      return { emoji: "🛍️", color: "#C689C6" };
+    default:
+      return { emoji: "💸", color: "#888888" };
+  }
+};
+
+export const TransactionCard: React.FC<{ transaction: Transaction }> = ({
+  transaction,
+}) => {
+  const isCredit = transaction.type === "INCOME";
+  const displayAmount = isCredit
+    ? `+$${transaction.amount.toFixed(2)}`
+    : `-$${transaction.amount.toFixed(2)}`;
+  const { emoji, color } = getCategoryIcon(transaction.category || "General");
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.leftGroup}>
+        <View style={[styles.avatar, { backgroundColor: color + "20" }]}>
+          <Text style={styles.emoji}>{emoji}</Text>
+        </View>
+        <View style={styles.info}>
+          <Text style={styles.title}>{transaction.title}</Text>
+          <Text style={styles.meta}>
+            {transaction.category || "General"} •{" "}
+            {new Date(transaction.date).toLocaleDateString()}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.rightGroup}>
+        <Text
+          style={[styles.amount, { color: isCredit ? "#39FF14" : "#FFFFFF" }]}
+        >
+          {displayAmount}
+        </Text>
+        {!transaction.isPersonal && (
+          <Text style={styles.sharedBadge}>Shared</Text>
+        )}
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+    marginBottom: 12,
+  },
+  leftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  emoji: {
+    fontSize: 20,
+  },
+  info: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  meta: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.5)",
+  },
+  rightGroup: {
+    alignItems: "flex-end",
+  },
+  amount: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  sharedBadge: {
+    fontSize: 10,
+    color: "#A1CEDC",
+    fontWeight: "600",
+    backgroundColor: "rgba(161, 206, 220, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+});

@@ -1,50 +1,124 @@
-# Welcome to your Expo app 👋
+# CashSync: Product Design & Feature Roadmap
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+![CashSync App UI Mockup](/Users/vimleshkumar/.gemini/antigravity/brain/1edef2fd-db4b-4b2c-9125-b6406ce8f1bd/cashsync_ui_mockup_1772902485788.png)
 
-## Get started
+## 1. Vision & Core Concept
 
-1. Install dependencies
+**CashSync** is a unified personal finance and expense-splitting application. It is designed to bridge the gap between keeping track of individual spending, household bills, and group trip expenses. It takes the transaction aggregation of tools like _Walnut_ or _Mint_, combines it with the powerful ledgering of _Splitwise_, and wraps it in a modern, ultra-premium UI.
 
-   ```bash
-   npm install
-   ```
+> [!NOTE]
+> CashSync aims to automate as much as possible through SMS parsing and email receipts before rolling out heavier Bank API integrations.
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
+## 2. Platforms & Tech Stack
 
-In the output, you'll find options to open the app in a
+### Cross-Platform Architecture
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+To support **Android, iOS, Windows, macOS, and Linux**, a unified codebase strategy is required:
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- **Core Mobile (Android/iOS)**: React Native (via Expo).
+- **Core Web & Desktop (Windows/macOS/Linux)**: React Native Web / Next.js OR React with Electron/Tauri for native desktop behavior.
+- **Backend Infrastructure**:
+  - **Server**: Node.js with NestJS or Express
+  - **Database**: PostgreSQL (Structured relationships like users, groups, transactions, splits)
+  - **Cache & Queues**: Redis (for parsing queues and fast lookups)
+  - **Deployment**: Vercel / AWS.
 
-## Get a fresh project
+---
 
-When you're ready, run:
+## 3. Core Features Breakdown
 
-```bash
-npm run reset-project
+### 1. Unified Authentication (OAuth Identity Linking)
+
+Users can log in via multiple providers seamlessly.
+
+- **Providers**: Google, Apple
+- **Identity Linking**: If a user logs in via Google today and Apple tomorrow with the same underlying email address, the accounts automatically merge into a single `User ID`.
+- **No Passwords**: Reduces friction and enhances security.
+
+### 2. Multi-Source Transaction Engine
+
+Aggregates expenses from all connected sources automatically.
+
+- **SMS Parsing Module**: An background service (mainly for Android) that reads localized bank SMS templates to extract:
+  - Amount Debited/Credited
+  - Merchant/Tag
+  - Date and Time
+- **Email Parsing Module**: Uses Gmail/Outlook APIs safely to read transaction alerts and digital receipts.
+- **Bank API (Phase 2)**: Placeholder architecture for direct integration via Plaid / Salt Edge.
+
+> [!TIP]
+> **Smart Deduplication Engine**: To avoid duplicate entries across SMS, Email, and Bank API, CashSync will match `Amount` + `Transaction ID`. If ID is not present, it will use a composite fingerprint hash (`amount` + `fuzzy_date_within_2m` + `fuzzy_merchant`).
+
+### 3. Smart Expense Splitting (The "Splitwise Killer")
+
+A flexible debt tracker embedded directly inside the transaction feed.
+
+- **Privacy Toggle (Personal Use)**: Each transaction has a "Personal Use" toggle. If marked as personal, splitting options are completely hidden from the UI.
+- **Individual & Group Splitting**:
+  - Easily assign transaction fractions to specific individuals.
+  - Add transaction to previously created groups (e.g., "Goa Trip", "Apartment 4B").
+- **Split Methods**: Equals, By Exact Amounts, By Percentages, or By Shares.
+- **Settling Up**: Tracks who owes whom with simplified debt routes (minimizing the number of transactions needed to settle up within a group).
+
+### 4. Categorization & Renaming
+
+Make messy bank statements human-readable.
+
+- **Auto-Tagging**: Initial mapping via Regex/ML (e.g., "SWIGGY\*BANGALORE" -> "Food").
+- **Custom Labels & Renaming**: Users can rename transactions for easier tracking, and the system remembers these mappings for future entries.
+
+---
+
+## 4. Design & Aesthetics
+
+The product must look and feel **modern, affluent, and heavily polished**.
+
+- **Theme**: True Dark Mode with vivid accent glows (e.g., Neon Green for credits/positive actions, Soft Purple for analytics).
+- **Material**: Heavy use of "Glassmorphism" inside cards, subtle border radiuses, and dynamic micro-interactions (hover states, spring animations).
+- **Typography**: Uncluttered, geometric sans-serif (e.g., _Inter_, _Outfit_, or _SF Pro Display_).
+- **Navigation**: Clean bottom tab bar on mobile, sleek sidebar on desktop.
+
+---
+
+## 5. System Data Flow
+
+```mermaid
+graph TD
+    A1[Bank SMS] --> B[Phone Parser Module]
+    A2[Bank Alert Emails] --> C[Email Integration API]
+    A3[Manual Entry] --> D[App Client]
+
+    B --> E{Deduplication Engine}
+    C --> E
+    D --> E
+
+    E -- Unique Record --> F[(PostgreSQL Database)]
+    E -- Duplicate --> Z[Merge Details / Ignore]
+
+    F --> G[Transactions View]
+
+    G -- Marked Personal --> H[Hide Split Options]
+    G -- Marked Shared --> I[Split Engine]
+
+    I --> J[Group Ledger]
+    I --> K[Individual Ledger]
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 6. Project Rollout Phases
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+1. **Phase 1: Foundation & UI**
+   - Build out the React Native/Web application shells.
+   - Implement dark mode styling, UI components, and mock interactions.
+   - Setup OAuth identity linking (Google/Apple).
+2. **Phase 2: Data Ingestion Engine**
+   - Develop SMS Receiver (Android).
+   - Develop Manual entry flows.
+   - Implement the Smart Deduplication logic.
+3. **Phase 3: The Split Engine**
+   - Database schema for Groups, Debts, and Settlements.
+   - UI for selecting friends, splitting bills, and privacy toggling.
+4. **Phase 4: Multi-platform Polish**
+   - Wrap React Web logic via Electron for Windows/Linux/macOS native installers.
+   - Finalize Email integration and push notifications.

@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  name       String?
+  password   String? // Optional for OAuth
+  provider   String // GOOGLE, APPLE, or JWT
+  providerId String? // Optional for JWT
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  transactions Transaction[] // Transactions authored by this user
+  memberships  GroupMember[]
+  splits       Split[] // Amounts owed by this user
+}
+
+model Group {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members      GroupMember[]
+  transactions Transaction[]
+}
+
+model GroupMember {
+  id       String   @id @default(uuid())
+  userId   String
+  groupId  String
+  role     String   @default("MEMBER") // ADMIN or MEMBER
+  joinedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  group Group @relation(fields: [groupId], references: [id])
+
+  @@unique([userId, groupId])
+}
+
+model Transaction {
+  id       String   @id @default(uuid())
+  title    String
+  amount   Float
+  currency String   @default("USD")
+  category String? // Automatically generated or manual
+  date     DateTime @default(now())
+
+  type   String @default("EXPENSE") // EXPENSE, INCOME, TRANSFER
+  source String @default("MANUAL") // MANUAL, SMS, EMAIL, API
+
+  // Fingerprinting for Deduplication
+  sourceId String? // Original ID from Bank or SMS
+  hash     String? // Fingerprint hash for deduplication
+
+  // Privacy
+  isPersonal Boolean @default(false)
+
+  // Relations
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id])
+
+  splits Split[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sourceId, amount, date])
+}
+
+model Split {
+  id            String @id @default(uuid())
+  transactionId String
+  userId        String
+
+  amountOwed Float
+  amountPaid Float   @default(0.0)
+  isSettled  Boolean @default(false)
+
+  transaction Transaction @relation(fields: [transactionId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+}

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # The PostgreSQL Database instance
+  db:
+    image: postgres:15-alpine
+    container_name: cashsync-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: cashsync
+    ports:
+      - "5432:5432"
+    volumes:
+      - cashsync_pgdata:/var/lib/postgresql/data
+
+  # The Node.js API (Backend)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cashsync-backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@db:5432/cashsync?schema=public
+      - PORT=3000
+    # Add a health check to wait for DB
+    command: >
+      sh -c "npx prisma migrate deploy && npm start"
+
+  # The React Native Web Client (Frontend via Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cashsync-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  cashsync_pgdata:
