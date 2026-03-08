@@ -1,22 +1,31 @@
-import { Request, Response } from 'express';
+import { BaseController } from '../../base/apiController';
 import { budgetService } from './budgetService';
+import type { CreateBudgetRequest } from './budgetSchema';
 
-export const budgetController = {
-    async create(req: Request, res: Response) {
-        try {
-            const budget = await budgetService.create(req.body);
-            res.status(201).json(budget);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to create budget.' });
-        }
-    },
+class BudgetController extends BaseController {
+  constructor() {
+    super('budget');
+  }
 
-    async list(req: Request, res: Response) {
-        try {
-            const budgets = await budgetService.list(req.params.userId as string, req.query.month as string | undefined);
-            res.json(budgets);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to fetch budgets.' });
-        }
+  create = this.handle(
+    'create',
+    async (ctx) => {
+      const budget = await budgetService.create(ctx.body as CreateBudgetRequest);
+      return this.created(budget);
     },
-};
+    'Failed to create budget.',
+  );
+
+  list = this.handle(
+    'list',
+    async (ctx) => {
+      const { userId } = ctx.params as { userId: string };
+      const { month } = ctx.query as { month?: string };
+      const budgets = await budgetService.list(userId, month);
+      return this.ok(budgets);
+    },
+    'Failed to fetch budgets.',
+  );
+}
+
+export const budgetController = new BudgetController();

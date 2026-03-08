@@ -1,126 +1,148 @@
-import { Request, Response } from 'express';
+import { BaseController } from '../../base/apiController';
 import { transactionService } from './transactionService';
+import type {
+  AddSplitsRequest,
+  CreateCategoryRuleRequest,
+  CreateTransactionRequest,
+  StatsQuery,
+  UpdateTransactionRequest,
+} from './transactionSchema';
 
-// ─── Transaction Controller ───────────────────────────────────────────────────
-// Responsibility: extract validated data from req → call service → send res.
-// No business logic. No DB calls.
+class TransactionController extends BaseController {
+  constructor() {
+    super('transaction');
+  }
 
-export const transactionController = {
+  getAll = this.handle(
+    'getAll',
+    async (ctx) => {
+      const query = ctx.query as {
+        userId?: string;
+        limit?: string;
+        offset?: string;
+        category?: string;
+        type?: string;
+        source?: string;
+        q?: string;
+        from?: string;
+        to?: string;
+      };
 
-    async getAll(req: Request, res: Response) {
-        try {
-            const { userId, limit, offset, category, type, source, q, from, to } = req.query;
-            const result = await transactionService.getAll({
-                userId: userId as string | undefined,
-                category: category as string | undefined,
-                type: type as string | undefined,
-                source: source as string | undefined,
-                q: q as string | undefined,
-                from: from as string | undefined,
-                to: to as string | undefined,
-                limit: limit ? parseInt(limit as string) : undefined,
-                offset: offset ? parseInt(offset as string) : undefined,
-            });
-            res.json(result);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to fetch transactions.' });
-        }
+      const result = await transactionService.getAll({
+        userId: query.userId,
+        category: query.category,
+        type: query.type,
+        source: query.source,
+        q: query.q,
+        from: query.from,
+        to: query.to,
+        limit: query.limit ? parseInt(query.limit, 10) : undefined,
+        offset: query.offset ? parseInt(query.offset, 10) : undefined,
+      });
+
+      return this.ok(result);
     },
+    'Failed to fetch transactions.',
+  );
 
-    async create(req: Request, res: Response) {
-        try {
-            const tx = await transactionService.create(req.body);
-            const status = (tx as any).deduplicated ? 200 : 201;
-            res.status(status).json(tx);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to create transaction.' });
-        }
+  create = this.handle(
+    'create',
+    async (ctx) => {
+      const transaction = await transactionService.create(ctx.body as CreateTransactionRequest);
+      const status = (transaction as { deduplicated?: boolean }).deduplicated ? 200 : 201;
+      return this.ok(transaction, status);
     },
+    'Failed to create transaction.',
+  );
 
-    async update(req: Request, res: Response) {
-        try {
-            const tx = await transactionService.update(req.params.id as string, req.body);
-            res.json(tx);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to update transaction.' });
-        }
+  update = this.handle(
+    'update',
+    async (ctx) => {
+      const { id } = ctx.params as { id: string };
+      const transaction = await transactionService.update(id, ctx.body as UpdateTransactionRequest);
+      return this.ok(transaction);
     },
+    'Failed to update transaction.',
+  );
 
-    async ingestSms(req: Request, res: Response) {
-        try {
-            const { rawSms, authorId } = req.body;
-            const tx = await transactionService.ingestSms(rawSms as string, authorId as string);
-            const status = (tx as any).deduplicated ? 200 : 201;
-            res.status(status).json(tx);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to ingest SMS.' });
-        }
+  ingestSms = this.handle(
+    'ingestSms',
+    async (ctx) => {
+      const { rawSms, authorId } = ctx.body as { rawSms: string; authorId: string };
+      const transaction = await transactionService.ingestSms(rawSms, authorId);
+      const status = (transaction as { deduplicated?: boolean }).deduplicated ? 200 : 201;
+      return this.ok(transaction, status);
     },
+    'Failed to ingest SMS.',
+  );
 
-    async addSplits(req: Request, res: Response) {
-        try {
-            const result = await transactionService.addSplits(req.params.id as string, req.body);
-            res.json(result);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to add splits.' });
-        }
+  addSplits = this.handle(
+    'addSplits',
+    async (ctx) => {
+      const { id } = ctx.params as { id: string };
+      const result = await transactionService.addSplits(id, ctx.body as AddSplitsRequest);
+      return this.ok(result);
     },
+    'Failed to add splits.',
+  );
 
-    async settleSplit(req: Request, res: Response) {
-        try {
-            const result = await transactionService.settleSplit(req.params.splitId as string);
-            res.json(result);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to settle split.' });
-        }
+  settleSplit = this.handle(
+    'settleSplit',
+    async (ctx) => {
+      const { splitId } = ctx.params as { splitId: string };
+      const result = await transactionService.settleSplit(splitId);
+      return this.ok(result);
     },
+    'Failed to settle split.',
+  );
 
-    async getDebtSummary(req: Request, res: Response) {
-        try {
-            const result = await transactionService.getDebtSummary(req.params.userId as string);
-            res.json(result);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to fetch debt summary.' });
-        }
+  getDebtSummary = this.handle(
+    'getDebtSummary',
+    async (ctx) => {
+      const { userId } = ctx.params as { userId: string };
+      const result = await transactionService.getDebtSummary(userId);
+      return this.ok(result);
     },
+    'Failed to fetch debt summary.',
+  );
 
-    async getCategoryRules(req: Request, res: Response) {
-        try {
-            const rules = await transactionService.getCategoryRules(req.params.userId as string);
-            res.json(rules);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to fetch category rules.' });
-        }
+  getCategoryRules = this.handle(
+    'getCategoryRules',
+    async (ctx) => {
+      const { userId } = ctx.params as { userId: string };
+      const rules = await transactionService.getCategoryRules(userId);
+      return this.ok(rules);
     },
+    'Failed to fetch category rules.',
+  );
 
-    async createCategoryRule(req: Request, res: Response) {
-        try {
-            const rule = await transactionService.createCategoryRule(req.body);
-            res.status(201).json(rule);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to create category rule.' });
-        }
+  createCategoryRule = this.handle(
+    'createCategoryRule',
+    async (ctx) => {
+      const rule = await transactionService.createCategoryRule(ctx.body as CreateCategoryRuleRequest);
+      return this.created(rule);
     },
+    'Failed to create category rule.',
+  );
 
-    async deleteCategoryRule(req: Request, res: Response) {
-        try {
-            await transactionService.deleteCategoryRule(req.params.ruleId as string);
-            res.json({ success: true });
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to delete category rule.' });
-        }
+  deleteCategoryRule = this.handle(
+    'deleteCategoryRule',
+    async (ctx) => {
+      const { ruleId } = ctx.params as { ruleId: string };
+      await transactionService.deleteCategoryRule(ruleId);
+      return this.ok({ success: true });
     },
+    'Failed to delete category rule.',
+  );
 
-    async getStats(req: Request, res: Response) {
-        try {
-            const result = await transactionService.getStats({
-                userId: req.query.userId as string,
-                from: req.query.from as string | undefined,
-                to: req.query.to as string | undefined,
-            });
-            res.json(result);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to fetch stats.' });
-        }
+  getStats = this.handle(
+    'getStats',
+    async (ctx) => {
+      const result = await transactionService.getStats(ctx.query as StatsQuery);
+      return this.ok(result);
     },
-};
+    'Failed to fetch stats.',
+  );
+}
+
+export const transactionController = new TransactionController();

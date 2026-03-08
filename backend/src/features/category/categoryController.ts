@@ -1,22 +1,30 @@
-import { Request, Response } from 'express';
+import { BaseController } from '../../base/apiController';
 import { categoryService } from './categoryService';
+import type { CreateCategoryRequest } from './categorySchema';
 
-export const categoryController = {
-    async list(req: Request, res: Response) {
-        try {
-            const categories = await categoryService.listByUser(req.params.userId as string);
-            res.json(categories);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to fetch categories.' });
-        }
-    },
+class CategoryController extends BaseController {
+  constructor() {
+    super('category');
+  }
 
-    async create(req: Request, res: Response) {
-        try {
-            const category = await categoryService.create(req.body);
-            res.status(201).json(category);
-        } catch (err: any) {
-            res.status(err.status ?? 500).json({ error: err.message ?? 'Failed to create category.' });
-        }
+  list = this.handle(
+    'list',
+    async (ctx) => {
+      const { userId } = ctx.params as { userId: string };
+      const categories = await categoryService.listByUser(userId);
+      return this.ok(categories);
     },
-};
+    'Failed to fetch categories.',
+  );
+
+  create = this.handle(
+    'create',
+    async (ctx) => {
+      const category = await categoryService.create(ctx.body as CreateCategoryRequest);
+      return this.created(category);
+    },
+    'Failed to create category.',
+  );
+}
+
+export const categoryController = new CategoryController();
