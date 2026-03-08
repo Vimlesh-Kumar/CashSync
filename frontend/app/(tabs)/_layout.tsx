@@ -78,6 +78,33 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="split"
+        options={{
+          title: "Split",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="◉" focused={focused} label="Split" />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="insights"
+        options={{
+          title: "Insights",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="◍" focused={focused} label="Insights" />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="☺" focused={focused} label="Profile" />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

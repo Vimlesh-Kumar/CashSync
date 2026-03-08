@@ -1,4 +1,6 @@
+import * as AuthSession from "expo-auth-session";
 import { LinearGradient } from "expo-linear-gradient";
+import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +17,8 @@ import {
 
 import { useAuth } from "@/src/context/AuthContext";
 import { syncUser } from "@/src/features/user";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const { signIn } = useAuth();
@@ -72,14 +76,13 @@ export default function AuthScreen() {
     setLoading(true);
 
     try {
-      const data = await syncUser(
-        email.trim(),
-        name.trim(),
-        "JWT",
-        undefined,
+      const data = await syncUser({
+        email: email.trim(),
+        name: name.trim(),
+        provider: "JWT",
         password,
-        !isLogin,
-      );
+        isSignUp: !isLogin,
+      });
 
       if (data?.user && data?.token) {
         // signIn → saves to storage AND updates context → AuthGate redirects
@@ -98,13 +101,62 @@ export default function AuthScreen() {
     setError(null);
     setLoading(true);
     try {
-      const simulatedEmail = `${provider.toLowerCase()}_user@cashsync.app`;
-      const data = await syncUser(
-        simulatedEmail,
-        `${provider} User`,
+      const clientId =
+        provider === "GOOGLE"
+          ? process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID
+          : process.env.EXPO_PUBLIC_APPLE_CLIENT_ID;
+      if (!clientId) {
+        throw new Error(
+          `Missing ${provider} client ID. Set EXPO_PUBLIC_${provider}_CLIENT_ID.`,
+        );
+      }
+
+      const redirectUri = AuthSession.makeRedirectUri({
+        scheme: "cashsync",
+        preferLocalhost: true,
+      });
+
+      const request = new AuthSession.AuthRequest({
+        clientId,
+        responseType: AuthSession.ResponseType.IdToken,
+        redirectUri,
+        scopes:
+          provider === "GOOGLE"
+            ? ["openid", "email", "profile"]
+            : ["openid", "email", "name"],
+        extraParams: {
+          nonce: `${provider}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        },
+      });
+
+      const discovery =
+        provider === "GOOGLE"
+          ? {
+              authorizationEndpoint:
+                "https://accounts.google.com/o/oauth2/v2/auth",
+              tokenEndpoint: "https://oauth2.googleapis.com/token",
+            }
+          : { authorizationEndpoint: "https://appleid.apple.com/auth/authorize" };
+
+      const result = await request.promptAsync(discovery);
+      if (result.type !== "success") {
+        if (result.type === "cancel" || result.type === "dismiss") return;
+        throw new Error(`${provider} authentication was not completed.`);
+      }
+
+      const idToken =
+        (result.params?.id_token as string | undefined) ||
+        (result.authentication as any)?.idToken;
+      if (!idToken) {
+        throw new Error(`${provider} did not return an id_token.`);
+      }
+
+      const data = await syncUser({
         provider,
-        `${provider.toLowerCase()}_oauth_id`,
-      );
+        idToken,
+        email: email.trim() || undefined,
+        name: name.trim() || undefined,
+      });
       if (data?.user && data?.token) {
         await signIn(data.user, data.token);
       }

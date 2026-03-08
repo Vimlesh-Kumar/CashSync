@@ -424,14 +424,40 @@ export default function HomeScreen() {
         {/* ── Quick Actions ── */}
         <View style={s.quickRow}>
           {[
-            { icon: "➕", label: "Add", color: ACCENT, action: () => {} },
-            { icon: "📲", label: "SMS", color: GREEN, action: () => {} },
-            { icon: "👥", label: "Split", color: PURPLE, action: () => {} },
+            {
+              icon: "➕",
+              label: "Add",
+              color: ACCENT,
+              action: async () => {
+                if (!user) return;
+                await createTransaction({
+                  title: "Manual Expense",
+                  amount: 100,
+                  type: "EXPENSE",
+                  isPersonal: true,
+                  category: "General",
+                  authorId: user.id,
+                });
+                load(true);
+              },
+            },
+            {
+              icon: "📲",
+              label: "SMS",
+              color: GREEN,
+              action: () => router.push("/(tabs)/explore"),
+            },
+            {
+              icon: "👥",
+              label: "Split",
+              color: PURPLE,
+              action: () => router.push("/(tabs)/split"),
+            },
             {
               icon: "📊",
               label: "Analyse",
               color: "#F59E0B",
-              action: () => {},
+              action: () => router.push("/(tabs)/explore"),
             },
           ].map((a) => (
             <Pressable key={a.label} style={s.qa} onPress={a.action}>

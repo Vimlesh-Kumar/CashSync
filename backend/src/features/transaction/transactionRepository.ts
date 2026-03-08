@@ -7,6 +7,10 @@ export interface TransactionFilters {
     userId?: string;
     category?: string;
     type?: string;
+    source?: string;
+    q?: string;
+    from?: Date;
+    to?: Date;
     limit: number;
     offset: number;
 }
@@ -34,6 +38,19 @@ export const transactionRepository = {
         if (filters.userId) where.authorId = filters.userId;
         if (filters.category) where.category = filters.category;
         if (filters.type) where.type = filters.type;
+        if (filters.source) where.source = filters.source;
+        if (filters.from || filters.to) {
+            where.date = {};
+            if (filters.from) where.date.gte = filters.from;
+            if (filters.to) where.date.lte = filters.to;
+        }
+        if (filters.q) {
+            where.OR = [
+                { title: { contains: filters.q, mode: 'insensitive' } },
+                { note: { contains: filters.q, mode: 'insensitive' } },
+                { originalTitle: { contains: filters.q, mode: 'insensitive' } },
+            ];
+        }
 
         return Promise.all([
             prisma.transaction.findMany({
@@ -57,6 +74,10 @@ export const transactionRepository = {
         return prisma.transaction.findUnique({ where: { hash } });
     },
 
+    findById(id: string) {
+        return prisma.transaction.findUnique({ where: { id } });
+    },
+
     create(data: CreateTransactionData) {
         return prisma.transaction.create({
             data: {
@@ -78,7 +99,7 @@ export const transactionRepository = {
         });
     },
 
-    update(id: string, data: { title?: string; note?: string; category?: string; isPersonal?: boolean }) {
+    update(id: string, data: { title?: string; note?: string; category?: string; isPersonal?: boolean; groupId?: string | null }) {
         return prisma.transaction.update({
             where: { id },
             data: {
@@ -86,6 +107,9 @@ export const transactionRepository = {
                 ...(data.note !== undefined && { note: data.note }),
                 ...(data.category !== undefined && { category: data.category }),
                 ...(data.isPersonal !== undefined && { isPersonal: data.isPersonal }),
+                ...(data.groupId !== undefined && {
+                    group: data.groupId ? { connect: { id: data.groupId } } : { disconnect: true },
+                }),
             },
             include: { splits: true },
         });

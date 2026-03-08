@@ -1,10 +1,17 @@
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
 
-export const syncUser = async (email: string, name: string, provider: 'GOOGLE' | 'APPLE' | 'JWT', providerId?: string, password?: string, isSignUp?: boolean) => {
+export const syncUser = async (params: {
+    email?: string;
+    name?: string;
+    provider: 'GOOGLE' | 'APPLE' | 'JWT';
+    idToken?: string;
+    password?: string;
+    isSignUp?: boolean;
+}) => {
     const response = await fetch(`${API_URL}/users/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, provider, providerId, password, isSignUp }),
+        body: JSON.stringify(params),
     });
 
     if (!response.ok) {

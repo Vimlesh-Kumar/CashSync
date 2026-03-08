@@ -122,3 +122,74 @@ graph TD
 4. **Phase 4: Multi-platform Polish**
    - Wrap React Web logic via Electron for Windows/Linux/macOS native installers.
    - Finalize Email integration and push notifications.
+
+---
+
+## 7. Implemented MVP (Current Codebase)
+
+### Backend
+
+- User identity sync with provider-aware account linking (`/api/users/sync`)
+- Transaction ingestion + analytics (`/api/transactions`)
+- SMS parser + deduplication with fallback fingerprint hash (amount + 2-minute bucket + merchant signature)
+- Split support with methods: `EQUAL`, `EXACT`, `PERCENT`, `SHARES`
+- Group APIs:
+  - `GET /api/groups?userId=...`
+  - `POST /api/groups`
+  - `POST /api/groups/:id/members`
+  - `GET /api/groups/:id/ledger`
+  - `POST /api/groups/:id/settle`
+- Debt simplification in group ledger (minimized settle-up routes)
+
+### Frontend (Expo, mobile + web)
+
+- Auth screen with email/password and simulated OAuth flows
+- Home dashboard with analytics, quick actions, and premium dark UI
+- Transactions screen:
+  - filtering by type/category
+  - SMS ingestion modal
+  - rename/re-categorize transactions
+  - personal/shared toggle
+  - split assignment flow
+- New Groups screen:
+  - create groups
+  - add members by email
+  - view suggested settle-up routes
+  - settle from debtor side
+
+### Verified Build
+
+- Backend TypeScript build passes (`npm run build` in `backend`)
+- Frontend type-check passes (`npx tsc --noEmit` in `frontend`)
+
+---
+
+## 8. Local Setup (One Command)
+
+```bash
+npm run bootstrap
+```
+
+Then start both apps:
+
+```bash
+npm run dev
+```
+
+### OAuth Configuration
+
+Set these environment variables for real OAuth verification:
+
+Backend (`backend/.env`):
+
+- `GOOGLE_CLIENT_IDS=your-google-client-id.apps.googleusercontent.com`
+- `APPLE_CLIENT_IDS=your-apple-service-id`
+
+Frontend (`frontend/.env`):
+
+- `EXPO_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com`
+- `EXPO_PUBLIC_APPLE_CLIENT_ID=your-apple-service-id`
+
+For full architecture and endpoint reference, see:
+
+- `docs/ARCHITECTURE.md`

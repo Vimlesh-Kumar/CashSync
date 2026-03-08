@@ -3,6 +3,70 @@ import { buildSmsHash, parseSms } from '../../services/sms.service';
 import { transactionRepository } from './transactionRepository';
 import { AddSplitsRequest, CreateTransactionRequest, StatsQuery, UpdateTransactionRequest } from './transactionSchema';
 
+function normalizeMerchant(value: string): string {
+    return value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 16);
+}
+
+function buildDedupHash(params: {
+    sourceId?: string;
+    amount: number;
+    date: Date;
+    merchantLike: string;
+}) {
+    if (params.sourceId) {
+        return `${params.sourceId}-${params.amount}`;
+    }
+    const bucket2m = Math.floor(params.date.getTime() / (1000 * 60 * 2));
+    return `F-${params.amount}-${bucket2m}-${normalizeMerchant(params.merchantLike)}`;
+}
+
+function round2(value: number) {
+    return Math.round(value * 100) / 100;
+}
+
+function computeSplitAmounts(
+    method: 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES',
+    splits: AddSplitsRequest['splits'],
+    totalAmount: number
+) {
+    if (method === 'EXACT') {
+        const exact = splits.map((s) => {
+            if (s.amountOwed === undefined) throw { status: 400, message: 'Exact split requires amountOwed for each member.' };
+            return { userId: s.userId, amountOwed: round2(s.amountOwed) };
+        });
+        const sum = round2(exact.reduce((acc, s) => acc + s.amountOwed, 0));
+        if (Math.abs(sum - totalAmount) > 0.01) {
+            throw { status: 400, message: 'Exact split total must match transaction amount.' };
+        }
+        return exact;
+    }
+
+    if (method === 'PERCENT') {
+        const percent = splits.map((s) => {
+            if (s.percentage === undefined) throw { status: 400, message: 'Percent split requires percentage for each member.' };
+            return { userId: s.userId, percentage: s.percentage };
+        });
+        const totalPct = percent.reduce((acc, s) => acc + s.percentage, 0);
+        if (Math.abs(totalPct - 100) > 0.01) {
+            throw { status: 400, message: 'Percent split must sum to 100.' };
+        }
+        return percent.map((s) => ({ userId: s.userId, amountOwed: round2((totalAmount * s.percentage) / 100) }));
+    }
+
+    if (method === 'SHARES') {
+        const shares = splits.map((s) => {
+            if (s.shares === undefined) throw { status: 400, message: 'Shares split requires shares for each member.' };
+            return { userId: s.userId, shares: s.shares };
+        });
+        const totalShares = shares.reduce((acc, s) => acc + s.shares, 0);
+        return shares.map((s) => ({ userId: s.userId, amountOwed: round2((totalAmount * s.shares) / totalShares) }));
+    }
+
+    // EQUAL
+    const equalAmount = round2(totalAmount / splits.length);
+    return splits.map((s) => ({ userId: s.userId, amountOwed: equalAmount }));
+}
+
 // ─── Transaction Service ──────────────────────────────────────────────────────
 // All business logic. No Express, no Prisma, no req/res.
 
@@ -14,6 +78,10 @@ export const transactionService = {
         offset?: number;
         category?: string;
         type?: string;
+        source?: string;
+        q?: string;
+        from?: string;
+        to?: string;
     }) {
         const limit = params.limit ?? 50;
         const offset = params.offset ?? 0;
@@ -22,6 +90,10 @@ export const transactionService = {
             userId: params.userId,
             category: params.category,
             type: params.type,
+            source: params.source,
+            q: params.q,
+            from: params.from ? new Date(params.from) : undefined,
+            to: params.to ? new Date(params.to) : undefined,
             limit,
             offset,
         });
@@ -31,8 +103,12 @@ export const transactionService = {
 
     async create(params: CreateTransactionRequest) {
         const txDate = params.date ? new Date(params.date) : new Date();
-        const day = txDate.toISOString().substring(0, 10);
-        const hash = `${params.sourceId ?? 'MANUAL'}-${params.amount}-${day}`;
+        const hash = buildDedupHash({
+            sourceId: params.sourceId,
+            amount: params.amount,
+            date: txDate,
+            merchantLike: params.title,
+        });
 
         // Smart deduplication
         const existing = await transactionRepository.findByHash(hash);
@@ -99,12 +175,21 @@ export const transactionService = {
         });
     },
 
-    async addSplits(transactionId: string, { splits, method }: AddSplitsRequest) {
+    async addSplits(transactionId: string, { splits, method, totalAmount }: AddSplitsRequest) {
+        const tx = await transactionRepository.findById(transactionId);
+        if (!tx) throw { status: 404, message: 'Transaction not found.' };
+
+        const normalizedSplits = computeSplitAmounts(
+            method,
+            splits,
+            round2(totalAmount ?? tx.amount)
+        );
+
         // Replace any existing splits (re-splitting flow)
         await transactionRepository.deleteSplitsByTransactionId(transactionId);
 
         return Promise.all(
-            splits.map(s =>
+            normalizedSplits.map(s =>
                 transactionRepository.createSplit({
                     transactionId,
                     userId: s.userId,

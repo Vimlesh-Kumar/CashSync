@@ -9,11 +9,15 @@ export const transactionController = {
 
     async getAll(req: Request, res: Response) {
         try {
-            const { userId, limit, offset, category, type } = req.query;
+            const { userId, limit, offset, category, type, source, q, from, to } = req.query;
             const result = await transactionService.getAll({
                 userId: userId as string | undefined,
                 category: category as string | undefined,
                 type: type as string | undefined,
+                source: source as string | undefined,
+                q: q as string | undefined,
+                from: from as string | undefined,
+                to: to as string | undefined,
                 limit: limit ? parseInt(limit as string) : undefined,
                 offset: offset ? parseInt(offset as string) : undefined,
             });

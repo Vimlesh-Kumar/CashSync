@@ -1,4 +1,7 @@
 import { Application } from 'express';
+import budgetRouter from './budget/budgetApi';
+import categoryRouter from './category/categoryApi';
+import groupRouter from './group/groupApi';
 import transactionRouter from './transaction/transactionApi';
 import userRouter from './user/userApi';
 
@@ -14,6 +17,9 @@ interface Feature {
 
 const features: Feature[] = [
     { basePath: '/api/users', router: userRouter },
+    { basePath: '/api/categories', router: categoryRouter },
+    { basePath: '/api/budgets', router: budgetRouter },
+    { basePath: '/api/groups', router: groupRouter },
     { basePath: '/api/transactions', router: transactionRouter },
 ];
 

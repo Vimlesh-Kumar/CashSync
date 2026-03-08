@@ -3,18 +3,26 @@ import { z } from 'zod';
 // ─── Request Schemas ──────────────────────────────────────────────────────────
 
 export const syncUserSchema = z.object({
-    email: z.string().email('Must be a valid email address.'),
+    email: z.string().email('Must be a valid email address.').optional(),
     name: z.string().optional(),
     provider: z.enum(['GOOGLE', 'APPLE', 'JWT']).refine(
         (v) => ['GOOGLE', 'APPLE', 'JWT'].includes(v),
         { message: "provider must be 'GOOGLE', 'APPLE', or 'JWT'." }
     ),
-    providerId: z.string().optional(),
+    idToken: z.string().optional(),
     password: z.string().optional(),
     isSignUp: z.boolean().optional(),
 }).refine(
-    (data) => data.provider !== 'JWT' || !!data.password,
-    { message: 'password is required for JWT provider.', path: ['password'] }
+    (data) => {
+        if (data.provider === 'JWT') {
+            return !!data.password && !!data.email;
+        }
+        return !!data.idToken;
+    },
+    {
+        message: 'JWT login needs email + password, OAuth login needs idToken.',
+        path: ['provider'],
+    }
 );
 
 export const getUserParamsSchema = z.object({

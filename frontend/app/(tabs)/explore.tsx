@@ -1,4 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
+import * as Clipboard from "expo-clipboard";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,7 +14,9 @@ import {
 } from "react-native";
 
 import { useAuth } from "@/src/context/AuthContext";
+import { getGroups, GroupSummary } from "@/src/features/group";
 import {
+  addSplits,
   getTransactions,
   ingestSms,
   Transaction,
@@ -43,6 +46,7 @@ const CATEGORIES = [
   "General",
 ];
 const TYPES = ["All", "EXPENSE", "INCOME", "TRANSFER"];
+const SOURCES = ["All", "MANUAL", "SMS", "EMAIL", "API"];
 
 const CATEGORY_META: Record<string, { emoji: string; color: string }> = {
   "Food & Groceries": { emoji: "🍔", color: "#FF6B6B" },
@@ -74,27 +78,87 @@ function SmsModal({
   onSuccess: () => void;
 }) {
   const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingAuto, setLoadingAuto] = useState(false);
+  const [loadingManual, setLoadingManual] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [autoStatus, setAutoStatus] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
-  const handleSubmit = async () => {
-    if (!text.trim()) return;
-    setLoading(true);
-    setResult(null);
+  const looksLikeTransactionSms = (value: string) =>
+    /(upi|debited|credited|sent|received|a\/c|ac\s*x?\d|bank|ref)/i.test(
+      value
+    );
+
+  const parseAndIngest = async (
+    rawSms: string,
+    mode: "AUTO" | "MANUAL"
+  ): Promise<boolean> => {
     try {
-      const tx = await ingestSms(text.trim(), authorId);
+      const tx = await ingestSms(rawSms, authorId);
       if ((tx as any).deduplicated) {
         setResult("⚡ Already exists — skipped (duplicate)");
       } else {
         setResult(`✅ Parsed: ₹${tx.amount} ${tx.type} · ${tx.category}`);
+        if (mode === "AUTO") {
+          setAutoStatus("Auto-detected and added from clipboard.");
+        }
         onSuccess();
       }
+      return true;
     } catch (e: any) {
       setResult(`❌ ${e.message}`);
+      if (mode === "AUTO") {
+        setAutoStatus("Found text, but parsing failed. Use manual fallback below.");
+      }
+    }
+    return false;
+  };
+
+  const handleAutoDetect = async () => {
+    setLoadingAuto(true);
+    setResult(null);
+    setAutoStatus("Checking clipboard for a bank SMS...");
+    try {
+      const clipboardText = (await Clipboard.getStringAsync()).trim();
+      if (!clipboardText) {
+        setAutoStatus("Clipboard is empty. Copy your bank SMS, then tap Auto Detect.");
+        return;
+      }
+
+      setText(clipboardText);
+      if (!looksLikeTransactionSms(clipboardText)) {
+        setAutoStatus(
+          "Clipboard has text, but it does not look like a transaction SMS."
+        );
+        return;
+      }
+
+      await parseAndIngest(clipboardText, "AUTO");
+    } catch (_) {
+      setAutoStatus(
+        "Could not read clipboard on this device. Use manual fallback below."
+      );
     } finally {
-      setLoading(false);
+      setLoadingAuto(false);
     }
   };
+
+  const handleManualSubmit = async () => {
+    const rawSms = text.trim();
+    if (!rawSms) return;
+    setLoadingManual(true);
+    setResult(null);
+    await parseAndIngest(rawSms, "MANUAL");
+    setLoadingManual(false);
+  };
+
+  useEffect(() => {
+    if (!visible) return;
+    setResult(null);
+    setAutoStatus(null);
+    setManualOpen(false);
+    void handleAutoDetect();
+  }, [visible]);
 
   return (
     <Modal
@@ -105,23 +169,16 @@ function SmsModal({
     >
       <View style={smsS.overlay}>
         <View style={smsS.sheet}>
-          <Text style={smsS.title}>📲 Paste Bank SMS</Text>
+          <Text style={smsS.title}>📲 Auto Detect Bank SMS</Text>
           <Text style={smsS.sub}>
-            Paste the raw SMS from your bank. CashSync will parse it
-            automatically.
+            CashSync checks your clipboard first (mobile/web/tablet). Manual
+            input stays available as fallback.
           </Text>
-          <TextInput
-            style={smsS.input}
-            multiline
-            numberOfLines={5}
-            placeholder={
-              "e.g. Rs.350.00 debited from Axis Bank A/c XX1234 on 07-Mar at SWIGGY ref 123456"
-            }
-            placeholderTextColor="#3D4E68"
-            value={text}
-            onChangeText={setText}
-            selectionColor={ACCENT}
-          />
+          {autoStatus && (
+            <View style={[smsS.resultBox, { borderColor: ACCENT + "44" }]}>
+              <Text style={{ color: "#fff", fontSize: 13 }}>{autoStatus}</Text>
+            </View>
+          )}
           {result && (
             <View
               style={[
@@ -136,20 +193,55 @@ function SmsModal({
               <Text style={{ color: "#fff", fontSize: 13 }}>{result}</Text>
             </View>
           )}
+          <Pressable
+            style={smsS.submitBtn}
+            onPress={handleAutoDetect}
+            disabled={loadingAuto}
+          >
+            {loadingAuto ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={smsS.submitText}>Auto Detect</Text>
+            )}
+          </Pressable>
+          <Pressable
+            style={smsS.toggleManual}
+            onPress={() => setManualOpen((v) => !v)}
+          >
+            <Text style={smsS.toggleManualText}>
+              {manualOpen ? "Hide manual fallback" : "Add message manually"}
+            </Text>
+          </Pressable>
+          {manualOpen && (
+            <>
+              <TextInput
+                style={smsS.input}
+                multiline
+                numberOfLines={5}
+                placeholder={
+                  "e.g. Sent Rs.25.00 from Kotak Bank AC X0149 to Q986578614@ybl on 08-03-26. UPI Ref 593237371464."
+                }
+                placeholderTextColor="#3D4E68"
+                value={text}
+                onChangeText={setText}
+                selectionColor={ACCENT}
+              />
+              <Pressable
+                style={smsS.submitBtn}
+                onPress={handleManualSubmit}
+                disabled={loadingManual}
+              >
+                {loadingManual ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={smsS.submitText}>Parse Manual Message</Text>
+                )}
+              </Pressable>
+            </>
+          )}
           <View style={smsS.btnRow}>
             <Pressable style={smsS.cancelBtn} onPress={onClose}>
               <Text style={{ color: MUTED, fontWeight: "600" }}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={smsS.submitBtn}
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={smsS.submitText}>Parse & Add</Text>
-              )}
             </Pressable>
           </View>
         </View>
@@ -187,6 +279,16 @@ const smsS = StyleSheet.create({
     padding: 12,
     backgroundColor: "#ffffff08",
   },
+  toggleManual: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD_BG,
+  },
+  toggleManualText: { color: TEXT_DIM, fontSize: 12, fontWeight: "700" },
   btnRow: { flexDirection: "row", gap: 12 },
   cancelBtn: {
     flex: 1,
@@ -221,12 +323,13 @@ function RenameModal({
   const [title, setTitle] = useState(tx.title);
   const [note, setNote] = useState(tx.note || "");
   const [category, setCategory] = useState(tx.category);
+  const [isPersonal, setIsPersonal] = useState(tx.isPersonal);
   const [loading, setLoading] = useState(false);
 
   const save = async () => {
     setLoading(true);
     try {
-      await updateTransaction(tx.id, { title, note, category });
+      await updateTransaction(tx.id, { title, note, category, isPersonal });
       onSaved();
       onClose();
     } catch (_) {
@@ -260,6 +363,25 @@ function RenameModal({
             placeholderTextColor="#3D4E68"
             selectionColor={ACCENT}
           />
+          <Pressable
+            onPress={() => setIsPersonal((v) => !v)}
+            style={[
+              smsS.resultBox,
+              {
+                borderColor: isPersonal ? GREEN + "44" : ACCENT + "44",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              },
+            ]}
+          >
+            <Text style={{ color: "#fff", fontSize: 13 }}>
+              Personal Use
+            </Text>
+            <Text style={{ color: isPersonal ? GREEN : ACCENT, fontWeight: "700" }}>
+              {isPersonal ? "ON" : "OFF"}
+            </Text>
+          </Pressable>
 
           {/* Category picker */}
           <ScrollView
@@ -321,6 +443,188 @@ function RenameModal({
   );
 }
 
+function SplitModal({
+  tx,
+  authorId,
+  onClose,
+  onSaved,
+}: {
+  tx: Transaction;
+  authorId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(tx.groupId ?? null);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    getGroups(authorId)
+      .then((res) => {
+        if (!mounted) return;
+        setGroups(res);
+        if (!selectedGroupId && res.length > 0) {
+          setSelectedGroupId(res[0]!.id);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [authorId]);
+
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId) || null;
+
+  useEffect(() => {
+    if (!selectedGroup) {
+      setSelectedMemberIds([]);
+      return;
+    }
+    setSelectedMemberIds(selectedGroup.members.map((m) => m.user.id));
+  }, [selectedGroupId, selectedGroup?.members.length]);
+
+  const toggleMember = (id: string) => {
+    setSelectedMemberIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const save = async () => {
+    if (!selectedGroupId || !selectedMemberIds.length) return;
+
+    setLoading(true);
+    try {
+      await addSplits(
+        tx.id,
+        selectedMemberIds.map((id) => ({ userId: id })),
+        "EQUAL",
+        tx.amount
+      );
+      await updateTransaction(tx.id, {
+        isPersonal: false,
+        groupId: selectedGroupId,
+      });
+      onSaved();
+      onClose();
+    } catch (_) {
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={smsS.overlay}>
+        <View style={smsS.sheet}>
+          <Text style={smsS.title}>👥 Split Transaction</Text>
+          <Text style={smsS.sub}>Pick a group and members by name.</Text>
+          <Text style={[smsS.sub, { opacity: 0.7 }]}>
+            Amount: ₹{tx.amount.toLocaleString("en-IN")} · Method: Equal split
+          </Text>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
+          >
+            {groups.map((group) => (
+              <Pressable
+                key={group.id}
+                onPress={() => setSelectedGroupId(group.id)}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor:
+                    selectedGroupId === group.id ? ACCENT : BORDER,
+                  backgroundColor:
+                    selectedGroupId === group.id ? ACCENT + "22" : CARD_BG,
+                }}
+              >
+                <Text
+                  style={{
+                    color: selectedGroupId === group.id ? ACCENT : TEXT_DIM,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
+                  {group.emoji ? `${group.emoji} ` : ""}
+                  {group.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {selectedGroup && (
+            <View style={{ gap: 8 }}>
+              <Text style={[smsS.sub, { marginTop: 4 }]}>Members</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {selectedGroup.members.map((member) => {
+                  const selected = selectedMemberIds.includes(member.user.id);
+                  return (
+                    <Pressable
+                      key={member.id}
+                      onPress={() => toggleMember(member.user.id)}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 18,
+                        borderWidth: 1,
+                        borderColor: selected ? GREEN : BORDER,
+                        backgroundColor: selected ? GREEN + "22" : CARD_BG,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: selected ? GREEN : TEXT_DIM,
+                          fontSize: 12,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {member.user.name ||
+                          member.user.email.split("@")[0] ||
+                          "Member"}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {!selectedGroup && (
+            <View style={[smsS.resultBox, { borderColor: RED + "44" }]}>
+              <Text style={{ color: TEXT_DIM, fontSize: 12 }}>
+                Create a group first in the Split tab, then split here.
+              </Text>
+            </View>
+          )}
+
+          <View style={smsS.btnRow}>
+            <Pressable style={smsS.cancelBtn} onPress={onClose}>
+              <Text style={{ color: MUTED, fontWeight: "600" }}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={smsS.submitBtn}
+              onPress={save}
+              disabled={loading || !selectedGroup || !selectedMemberIds.length}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={smsS.submitText}>Save Split</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Main Explore Screen ──────────────────────────────────────────────────────
 
 export default function ExploreScreen() {
@@ -329,8 +633,12 @@ export default function ExploreScreen() {
   const [loading, setLoading] = useState(true);
   const [filterCat, setFilterCat] = useState("All");
   const [filterType, setFilterType] = useState("All");
+  const [filterSource, setFilterSource] = useState("All");
+  const [search, setSearch] = useState("");
+  const [dateRange, setDateRange] = useState<"ALL" | "7D" | "30D">("ALL");
   const [smsOpen, setSmsOpen] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [splitTx, setSplitTx] = useState<Transaction | null>(null);
 
   const fetch = useCallback(async () => {
     if (!user) return;
@@ -339,13 +647,20 @@ export default function ExploreScreen() {
       const opts: any = {};
       if (filterCat !== "All") opts.category = filterCat;
       if (filterType !== "All") opts.type = filterType;
+      if (filterSource !== "All") opts.source = filterSource;
+      if (search.trim()) opts.q = search.trim();
+      if (dateRange !== "ALL") {
+        const days = dateRange === "7D" ? 7 : 30;
+        const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        opts.from = from.toISOString();
+      }
       const res = await getTransactions(user.id, opts);
       setTransactions(res.transactions);
     } catch (_) {
     } finally {
       setLoading(false);
     }
-  }, [user, filterCat, filterType]);
+  }, [user, filterCat, filterType, filterSource, search, dateRange]);
 
   useEffect(() => {
     fetch();
@@ -367,9 +682,18 @@ export default function ExploreScreen() {
         <View style={s.header}>
           <Text style={s.heading}>Transactions</Text>
           <Pressable style={s.smsBtn} onPress={() => setSmsOpen(true)}>
-            <Text style={s.smsBtnText}>📲 Add SMS</Text>
+            <Text style={s.smsBtnText}>📲 Auto Detect</Text>
           </Pressable>
         </View>
+
+        <TextInput
+          style={s.search}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search merchant, title, notes"
+          placeholderTextColor={MUTED}
+          selectionColor={ACCENT}
+        />
 
         {/* ── Type filter ── */}
         <ScrollView
@@ -386,6 +710,55 @@ export default function ExploreScreen() {
             >
               <Text style={[s.pillText, filterType === t && s.pillTextActive]}>
                 {t}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {/* ── Source filter ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.pills}
+          style={{ marginBottom: 12 }}
+        >
+          {SOURCES.map((source) => (
+            <Pressable
+              key={source}
+              onPress={() => setFilterSource(source)}
+              style={[s.pill, filterSource === source && s.pillActive]}
+            >
+              <Text
+                style={[
+                  s.pillText,
+                  filterSource === source && s.pillTextActive,
+                ]}
+              >
+                {source}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {/* ── Date filter ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.pills}
+          style={{ marginBottom: 12 }}
+        >
+          {["ALL", "7D", "30D"].map((window) => (
+            <Pressable
+              key={window}
+              onPress={() =>
+                setDateRange(window as "ALL" | "7D" | "30D")
+              }
+              style={[s.pill, dateRange === window && s.pillActive]}
+            >
+              <Text
+                style={[s.pillText, dateRange === window && s.pillTextActive]}
+              >
+                {window === "ALL" ? "All Dates" : `Last ${window}`}
               </Text>
             </Pressable>
           ))}
@@ -424,7 +797,11 @@ export default function ExploreScreen() {
           </View>
         ) : (
           transactions.map((tx) => (
-            <Pressable key={tx.id} onLongPress={() => setEditTx(tx)}>
+            <Pressable
+              key={tx.id}
+              onLongPress={() => setEditTx(tx)}
+              onPress={() => setSplitTx(tx)}
+            >
               <TxCard tx={tx} />
             </Pressable>
           ))
@@ -432,7 +809,7 @@ export default function ExploreScreen() {
 
         {transactions.length > 0 && (
           <Text style={s.hint}>
-            Long-press any transaction to rename or re-categorise
+            Tap to split. Long-press to rename or re-categorise.
           </Text>
         )}
       </ScrollView>
@@ -450,6 +827,14 @@ export default function ExploreScreen() {
         <RenameModal
           tx={editTx}
           onClose={() => setEditTx(null)}
+          onSaved={fetch}
+        />
+      )}
+      {splitTx && (
+        <SplitModal
+          tx={splitTx}
+          authorId={user!.id}
+          onClose={() => setSplitTx(null)}
           onSaved={fetch}
         />
       )}
@@ -571,6 +956,16 @@ const s = StyleSheet.create({
     borderColor: GREEN + "33",
   },
   smsBtnText: { color: GREEN, fontWeight: "700", fontSize: 13 },
+  search: {
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    color: "#fff",
+    marginBottom: 12,
+  },
   pills: { gap: 8, paddingBottom: 4 },
   pill: {
     paddingHorizontal: 16,

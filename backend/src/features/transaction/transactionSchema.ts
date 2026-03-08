@@ -21,6 +21,7 @@ export const updateTransactionSchema = z.object({
     note: z.string().optional(),
     category: z.string().optional(),
     isPersonal: z.boolean().optional(),
+    groupId: z.string().uuid().nullable().optional(),
 });
 
 export const ingestSmsSchema = z.object({
@@ -32,10 +33,13 @@ export const addSplitsSchema = z.object({
     splits: z.array(
         z.object({
             userId: z.string().uuid('Each split userId must be a valid UUID.'),
-            amountOwed: z.number().positive('amountOwed must be positive.'),
+            amountOwed: z.number().positive('amountOwed must be positive.').optional(),
+            percentage: z.number().positive('percentage must be positive.').optional(),
+            shares: z.number().positive('shares must be positive.').optional(),
         })
     ).min(1, 'splits array must not be empty.'),
     method: z.enum(['EQUAL', 'EXACT', 'PERCENT', 'SHARES']).optional().default('EQUAL'),
+    totalAmount: z.number().positive('totalAmount must be positive.').optional(),
 });
 
 export const createCategoryRuleSchema = z.object({

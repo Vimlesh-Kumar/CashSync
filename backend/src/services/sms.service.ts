@@ -50,7 +50,19 @@ const SMS_RULES: SmsRule[] = [
     {
         bank: "Kotak",
         pattern:
+            /Sent\s+(?:INR|Rs\.?)\s*(?<amount>[\d,]+\.?\d*)\s+from\s+Kotak\s+Bank\s+(?:A\/?C|AC)\s*[XxA-Za-z0-9*]+\s+to\s+(?<merchant>[A-Za-z0-9._@-]{3,80})\s+on\s+(?<date>\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}).*?UPI\s*Ref(?:\s*No\.?)?\s*(?<refno>[A-Za-z0-9-]{6,})/i,
+    },
+    // Kotak (legacy/card style)
+    {
+        bank: "Kotak",
+        pattern:
             /Kotak\s*:\s*(?:INR|Rs\.?)\s*(?<amount>[\d,]+\.?\d*)\s+(?<type>debited|credited)(?:.*?at\s+(?<merchant>[^.]+))?/i,
+    },
+    // Generic UPI / wallet phrases
+    {
+        bank: "UPI",
+        pattern:
+            /(?<type>sent|paid|received|debited|credited)\s+(?:INR|Rs\.?)\s*(?<amount>[\d,]+\.?\d*)(?:.*?(?:to|from)\s+(?<merchant>[A-Za-z0-9._@*-]{3,80}))?(?:.*?on\s+(?<date>\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}))?(?:.*?UPI\s*Ref(?:\s*No\.?)?\s*(?<refno>[A-Za-z0-9-]{6,}))?/i,
     },
     // Generic fallback — works for many banks
     {
@@ -64,9 +76,42 @@ function parseAmount(raw: string): number {
     return parseFloat(raw.replace(/,/g, ""));
 }
 
+function normalizeMerchant(raw?: string): string | undefined {
+    if (!raw) return undefined;
+    const value = raw.replace(/\s+/g, " ").replace(/[.,;:\-]+$/g, "").trim();
+    return value || undefined;
+}
+
+function parseSmsDate(raw?: string): Date | undefined {
+    if (!raw) return undefined;
+
+    const normalized = raw.trim().replace(/[/.]/g, "-");
+    const match = normalized.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
+
+    if (match) {
+        const day = Number.parseInt(match[1], 10);
+        const month = Number.parseInt(match[2], 10);
+        const yearRaw = Number.parseInt(match[3], 10);
+        const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+        const date = new Date(year, month - 1, day);
+
+        if (
+            date.getFullYear() === year &&
+            date.getMonth() === month - 1 &&
+            date.getDate() === day
+        ) {
+            return date;
+        }
+    }
+
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 function inferType(raw: string): "EXPENSE" | "INCOME" {
     const lower = raw.toLowerCase();
-    if (/credit|received|deposit|refund/.test(lower)) return "INCOME";
+    if (/credit|received|deposit|refund|reversal/.test(lower)) return "INCOME";
+    if (/debit|sent|paid|spent|withdraw|purchase|dr\b/.test(lower)) return "EXPENSE";
     return "EXPENSE";
 }
 
@@ -80,14 +125,21 @@ export function parseSms(rawSms: string): ParsedSms | null {
 
         return {
             amount: parseAmount(amount),
-            type: inferType(type || "debit"),
-            merchant: merchant?.trim(),
+            type: inferType(type || rawSms),
+            merchant: normalizeMerchant(merchant),
             refNo: refno?.trim(),
-            date: new Date(),
+            date: parseSmsDate(match.groups.date) ?? new Date(),
             bank: rule.bank,
         };
     }
     return null;
+}
+
+function formatDayKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
 }
 
 /**
@@ -95,7 +147,7 @@ export function parseSms(rawSms: string): ParsedSms | null {
  * Uses: amount + date-day + merchant (if available)
  */
 export function buildSmsHash(parsed: ParsedSms, rawSms: string): string {
-    const day = (parsed.date || new Date()).toISOString().substring(0, 10);
+    const day = formatDayKey(parsed.date || new Date());
     const merchant = parsed.merchant?.substring(0, 12) || rawSms.substring(0, 20);
     return `SMS-${parsed.amount}-${day}-${merchant.toUpperCase().replace(/\s+/g, "")}`;
 }

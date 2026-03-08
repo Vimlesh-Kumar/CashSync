@@ -1,5 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import type { User } from "@prisma/client";
+import { oauthService } from "../../services/oauth.service";
 import { userRepository } from "./userRepository";
 import { AuthResponse } from "./userSchema";
 
@@ -17,22 +19,25 @@ export const userService = {
   },
 
   async syncIdentity(params: {
-    email: string;
+    email?: string;
     name?: string;
     provider: "GOOGLE" | "APPLE" | "JWT";
-    providerId?: string;
+    idToken?: string;
     password?: string;
     isSignUp?: boolean;
   }): Promise<AuthResponse> {
-    const { email, name, provider, providerId, password, isSignUp } = params;
+    const { email, name, provider, idToken, password, isSignUp } = params;
 
-    let user = await userRepository.findByEmail(email);
+    let user: User | null = null;
 
-    if (user) {
-      // ── Existing user — identity linking ──────────────────────────────
-      if (provider === "JWT") {
+    if (provider === "JWT") {
+      if (!email) {
+        throw { status: 400, message: "Email is required for JWT login." };
+      }
+      user = await userRepository.findByEmail(email);
+
+      if (user) {
         if (isSignUp) {
-          // Link a password to an existing OAuth account (or re-set it)
           const hashed = await bcrypt.hash(password!, SALT_ROUNDS);
           user = await userRepository.updatePassword(user.id, hashed);
         } else {
@@ -44,32 +49,98 @@ export const userService = {
             };
           }
           const valid = await bcrypt.compare(password!, user.password);
-          if (!valid)
+          if (!valid) {
             throw { status: 401, message: "Invalid email or password." };
+          }
         }
       } else {
-        // OAuth — refresh provider metadata
-        user = await userRepository.updateOAuth(user.id, {
-          provider,
-          providerId: providerId ?? null,
-          name: user.name ?? name,
+        const hashed = await bcrypt.hash(password!, SALT_ROUNDS);
+        user = await userRepository.create({
+          email,
+          name,
+          provider: "JWT",
+          providerId: null,
+          password: hashed,
         });
       }
     } else {
-      // ── New user ───────────────────────────────────────────────────────
-      const hashed =
-        provider === "JWT" ? await bcrypt.hash(password!, SALT_ROUNDS) : null;
+      if (!idToken) {
+        throw { status: 400, message: "OAuth idToken is required." };
+      }
 
-      user = await userRepository.create({
-        email,
-        name,
+      const identity = await oauthService.verify(provider, idToken);
+      const resolvedEmail = identity.email ?? email;
+      if (!resolvedEmail) {
+        throw {
+          status: 400,
+          message:
+            "OAuth email is unavailable. Please share email scope and try again.",
+        };
+      }
+      if (email && resolvedEmail.toLowerCase() !== email.toLowerCase()) {
+        throw {
+          status: 400,
+          message: "Provided email does not match OAuth token email.",
+        };
+      }
+
+      const linkedByProvider = await userRepository.findByAuthProvider(
         provider,
-        providerId: providerId ?? null,
-        password: hashed,
+        identity.providerUserId
+      );
+      const userByEmail = await userRepository.findByEmail(resolvedEmail);
+
+      if (
+        linkedByProvider &&
+        userByEmail &&
+        linkedByProvider.user.id !== userByEmail.id
+      ) {
+        throw {
+          status: 409,
+          message:
+            "This OAuth identity is already linked to another account.",
+        };
+      }
+
+      user = linkedByProvider?.user ?? userByEmail;
+
+      if (!user) {
+        user = await userRepository.create({
+          email: resolvedEmail,
+          name: identity.name ?? name,
+          provider,
+          providerId: identity.providerUserId,
+          password: null,
+        });
+      }
+
+      user = await userRepository.updateOAuth(user.id, {
+        provider,
+        providerId: identity.providerUserId,
+        name: user.name ?? identity.name ?? name ?? null,
+      });
+
+      if (identity.avatarUrl || (!user.name && identity.name)) {
+        user = await userRepository.updateProfile(user.id, {
+          avatarUrl: identity.avatarUrl ?? user.avatarUrl,
+          name: user.name ?? identity.name ?? name ?? null,
+        });
+      }
+
+      await userRepository.upsertAuthProvider({
+        userId: user.id,
+        provider,
+        providerUserId: identity.providerUserId,
+        email: resolvedEmail,
+        emailVerified: identity.emailVerified,
       });
     }
 
     // Strip password from response
+    if (!user) {
+      throw { status: 500, message: "Unable to complete authentication." };
+    }
+
     const { password: _pwd, ...safeUser } = user;
 
     const token = jwt.sign(
