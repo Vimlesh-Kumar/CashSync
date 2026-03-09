@@ -1,5 +1,6 @@
-import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -48,17 +49,20 @@ const CATEGORIES = [
 const TYPES = ["All", "EXPENSE", "INCOME", "TRANSFER"];
 const SOURCES = ["All", "MANUAL", "SMS", "EMAIL", "API"];
 
-const CATEGORY_META: Record<string, { emoji: string; color: string }> = {
-  "Food & Groceries": { emoji: "🍔", color: "#FF6B6B" },
-  Subscriptions: { emoji: "🎬", color: "#FFD93D" },
-  Transport: { emoji: "🚗", color: "#4ECDC4" },
-  Salary: { emoji: "💰", color: GREEN },
-  Shopping: { emoji: "🛍️", color: "#C689C6" },
-  Healthcare: { emoji: "💊", color: "#F87171" },
-  Housing: { emoji: "🏠", color: "#60A5FA" },
-  Utilities: { emoji: "⚡", color: "#FBBF24" },
-  Investments: { emoji: "📈", color: "#9B59F5" },
-  General: { emoji: "💸", color: MUTED },
+const CATEGORY_META: Record<
+  string,
+  { icon: keyof typeof Ionicons.glyphMap; color: string }
+> = {
+  "Food & Groceries": { icon: "fast-food", color: "#FF6B6B" },
+  Subscriptions: { icon: "play-circle", color: "#FFD93D" },
+  Transport: { icon: "car", color: "#4ECDC4" },
+  Salary: { icon: "cash", color: GREEN },
+  Shopping: { icon: "cart", color: "#C689C6" },
+  Healthcare: { icon: "medkit", color: "#F87171" },
+  Housing: { icon: "home", color: "#60A5FA" },
+  Utilities: { icon: "flash", color: "#FBBF24" },
+  Investments: { icon: "trending-up", color: "#9B59F5" },
+  General: { icon: "wallet", color: MUTED },
 };
 function getMeta(cat: string) {
   return CATEGORY_META[cat] || CATEGORY_META["General"];
@@ -85,13 +89,11 @@ function SmsModal({
   const [result, setResult] = useState<string | null>(null);
 
   const looksLikeTransactionSms = (value: string) =>
-    /(upi|debited|credited|sent|received|a\/c|ac\s*x?\d|bank|ref)/i.test(
-      value
-    );
+    /(upi|debited|credited|sent|received|a\/c|ac\s*x?\d|bank|ref)/i.test(value);
 
   const parseAndIngest = async (
     rawSms: string,
-    mode: "AUTO" | "MANUAL"
+    mode: "AUTO" | "MANUAL",
   ): Promise<boolean> => {
     try {
       const tx = await ingestSms(rawSms, authorId);
@@ -108,7 +110,9 @@ function SmsModal({
     } catch (e: any) {
       setResult(`❌ ${e.message}`);
       if (mode === "AUTO") {
-        setAutoStatus("Found text, but parsing failed. Use manual fallback below.");
+        setAutoStatus(
+          "Found text, but parsing failed. Use manual fallback below.",
+        );
       }
     }
     return false;
@@ -121,14 +125,16 @@ function SmsModal({
     try {
       const clipboardText = (await Clipboard.getStringAsync()).trim();
       if (!clipboardText) {
-        setAutoStatus("Clipboard is empty. Copy your bank SMS, then tap Auto Detect.");
+        setAutoStatus(
+          "Clipboard is empty. Copy your bank SMS, then tap Auto Detect.",
+        );
         return;
       }
 
       setText(clipboardText);
       if (!looksLikeTransactionSms(clipboardText)) {
         setAutoStatus(
-          "Clipboard has text, but it does not look like a transaction SMS."
+          "Clipboard has text, but it does not look like a transaction SMS.",
         );
         return;
       }
@@ -136,7 +142,7 @@ function SmsModal({
       await parseAndIngest(clipboardText, "AUTO");
     } catch (_) {
       setAutoStatus(
-        "Could not read clipboard on this device. Use manual fallback below."
+        "Could not read clipboard on this device. Use manual fallback below.",
       );
     } finally {
       setLoadingAuto(false);
@@ -169,7 +175,10 @@ function SmsModal({
     >
       <View style={smsS.overlay}>
         <View style={smsS.sheet}>
-          <Text style={smsS.title}>📲 Auto Detect Bank SMS</Text>
+          <Text style={smsS.title}>
+            <Ionicons name="chatbubble-ellipses" size={20} color={ACCENT} />{" "}
+            Auto Detect Bank SMS
+          </Text>
           <Text style={smsS.sub}>
             CashSync checks your clipboard first (mobile/web/tablet). Manual
             input stays available as fallback.
@@ -342,7 +351,9 @@ function RenameModal({
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={smsS.overlay}>
         <View style={smsS.sheet}>
-          <Text style={smsS.title}>✏️ Edit Transaction</Text>
+          <Text style={smsS.title}>
+            <Ionicons name="pencil" size={20} color={ACCENT} /> Edit Transaction
+          </Text>
           <Text style={[smsS.sub, { opacity: 0.6 }]}>
             Original: {tx.originalTitle || tx.title}
           </Text>
@@ -375,10 +386,10 @@ function RenameModal({
               },
             ]}
           >
-            <Text style={{ color: "#fff", fontSize: 13 }}>
-              Personal Use
-            </Text>
-            <Text style={{ color: isPersonal ? GREEN : ACCENT, fontWeight: "700" }}>
+            <Text style={{ color: "#fff", fontSize: 13 }}>Personal Use</Text>
+            <Text
+              style={{ color: isPersonal ? GREEN : ACCENT, fontWeight: "700" }}
+            >
               {isPersonal ? "ON" : "OFF"}
             </Text>
           </Pressable>
@@ -412,6 +423,11 @@ function RenameModal({
                   borderColor: category === c ? ACCENT : BORDER,
                 }}
               >
+                <Ionicons
+                  name={getMeta(c).icon}
+                  size={14}
+                  color={category === c ? ACCENT : TEXT_DIM}
+                />
                 <Text
                   style={{
                     color: category === c ? ACCENT : TEXT_DIM,
@@ -419,7 +435,8 @@ function RenameModal({
                     fontSize: 12,
                   }}
                 >
-                  {getMeta(c).emoji} {c}
+                  {" "}
+                  {c}
                 </Text>
               </Pressable>
             ))}
@@ -455,7 +472,9 @@ function SplitModal({
   onSaved: () => void;
 }) {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(tx.groupId ?? null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
+    tx.groupId ?? null,
+  );
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -500,7 +519,7 @@ function SplitModal({
         tx.id,
         selectedMemberIds.map((id) => ({ userId: id })),
         "EQUAL",
-        tx.amount
+        tx.amount,
       );
       await updateTransaction(tx.id, {
         isPersonal: false,
@@ -518,7 +537,10 @@ function SplitModal({
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={smsS.overlay}>
         <View style={smsS.sheet}>
-          <Text style={smsS.title}>👥 Split Transaction</Text>
+          <Text style={smsS.title}>
+            <Ionicons name="people" size={20} color={ACCENT} /> Split
+            Transaction
+          </Text>
           <Text style={smsS.sub}>Pick a group and members by name.</Text>
           <Text style={[smsS.sub, { opacity: 0.7 }]}>
             Amount: ₹{tx.amount.toLocaleString("en-IN")} · Method: Equal split
@@ -538,8 +560,7 @@ function SplitModal({
                   paddingVertical: 8,
                   borderRadius: 20,
                   borderWidth: 1,
-                  borderColor:
-                    selectedGroupId === group.id ? ACCENT : BORDER,
+                  borderColor: selectedGroupId === group.id ? ACCENT : BORDER,
                   backgroundColor:
                     selectedGroupId === group.id ? ACCENT + "22" : CARD_BG,
                 }}
@@ -682,7 +703,12 @@ export default function ExploreScreen() {
         <View style={s.header}>
           <Text style={s.heading}>Transactions</Text>
           <Pressable style={s.smsBtn} onPress={() => setSmsOpen(true)}>
-            <Text style={s.smsBtnText}>📲 Auto Detect</Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Ionicons name="scan" size={14} color={GREEN} />
+              <Text style={s.smsBtnText}>Auto Detect</Text>
+            </View>
           </Pressable>
         </View>
 
@@ -750,9 +776,7 @@ export default function ExploreScreen() {
           {["ALL", "7D", "30D"].map((window) => (
             <Pressable
               key={window}
-              onPress={() =>
-                setDateRange(window as "ALL" | "7D" | "30D")
-              }
+              onPress={() => setDateRange(window as "ALL" | "7D" | "30D")}
               style={[s.pill, dateRange === window && s.pillActive]}
             >
               <Text
@@ -777,10 +801,20 @@ export default function ExploreScreen() {
               onPress={() => setFilterCat(c)}
               style={[s.pill, filterCat === c && s.pillActive]}
             >
-              <Text style={[s.pillText, filterCat === c && s.pillTextActive]}>
-                {c !== "All" ? getMeta(c).emoji + " " : ""}
-                {c}
-              </Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+              >
+                {c !== "All" && (
+                  <Ionicons
+                    name={getMeta(c).icon}
+                    size={14}
+                    color={filterCat === c ? ACCENT : TEXT_DIM}
+                  />
+                )}
+                <Text style={[s.pillText, filterCat === c && s.pillTextActive]}>
+                  {c}
+                </Text>
+              </View>
             </Pressable>
           ))}
         </ScrollView>
@@ -790,7 +824,12 @@ export default function ExploreScreen() {
           <ActivityIndicator color={ACCENT} style={{ marginTop: 40 }} />
         ) : transactions.length === 0 ? (
           <View style={s.empty}>
-            <Text style={{ fontSize: 42, marginBottom: 12 }}>🔍</Text>
+            <Ionicons
+              name="search"
+              size={42}
+              color={MUTED}
+              style={{ marginBottom: 12 }}
+            />
             <Text style={{ color: MUTED, fontSize: 15 }}>
               No transactions found
             </Text>
@@ -850,7 +889,7 @@ function TxCard({ tx }: { tx: Transaction }) {
   return (
     <View style={c.card}>
       <View style={[c.icon, { backgroundColor: meta.color + "22" }]}>
-        <Text style={{ fontSize: 22 }}>{meta.emoji}</Text>
+        <Ionicons name={meta.icon} size={24} color={meta.color} />
       </View>
       <View style={c.info}>
         <Text style={c.title} numberOfLines={1}>

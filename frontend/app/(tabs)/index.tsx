@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -33,20 +34,23 @@ const TEXT_DIM = "#8B9AB3";
 
 // ─── Category Icons ──────────────────────────────────────────────────────────
 
-const CATEGORY_META: Record<string, { emoji: string; color: string }> = {
-  "Food & Groceries": { emoji: "🍔", color: "#FF6B6B" },
-  Subscriptions: { emoji: "🎬", color: "#FFD93D" },
-  Transport: { emoji: "🚗", color: "#4ECDC4" },
-  Salary: { emoji: "💰", color: GREEN },
-  Shopping: { emoji: "🛍️", color: "#C689C6" },
-  Healthcare: { emoji: "💊", color: "#F87171" },
-  Housing: { emoji: "🏠", color: "#60A5FA" },
-  Utilities: { emoji: "⚡", color: "#FBBF24" },
-  Telecom: { emoji: "📱", color: "#34D399" },
-  Investments: { emoji: "📈", color: PURPLE },
-  "Cash Withdrawal": { emoji: "🏧", color: MUTED },
-  Transfer: { emoji: "↔️", color: ACCENT },
-  General: { emoji: "💸", color: MUTED },
+const CATEGORY_META: Record<
+  string,
+  { icon: keyof typeof Ionicons.glyphMap; color: string }
+> = {
+  "Food & Groceries": { icon: "fast-food", color: "#FF6B6B" },
+  Subscriptions: { icon: "play-circle", color: "#FFD93D" },
+  Transport: { icon: "car", color: "#4ECDC4" },
+  Salary: { icon: "cash", color: GREEN },
+  Shopping: { icon: "cart", color: "#C689C6" },
+  Healthcare: { icon: "medkit", color: "#F87171" },
+  Housing: { icon: "home", color: "#60A5FA" },
+  Utilities: { icon: "flash", color: "#FBBF24" },
+  Telecom: { icon: "call", color: "#34D399" },
+  Investments: { icon: "trending-up", color: PURPLE },
+  "Cash Withdrawal": { icon: "cash-outline", color: MUTED },
+  Transfer: { icon: "swap-horizontal", color: ACCENT },
+  General: { icon: "wallet", color: MUTED },
 };
 
 function getCategoryMeta(cat: string) {
@@ -61,7 +65,7 @@ function TxRow({ tx }: { tx: Transaction }) {
   return (
     <View style={txStyles.row}>
       <View style={[txStyles.icon, { backgroundColor: meta.color + "20" }]}>
-        <Text style={txStyles.emoji}>{meta.emoji}</Text>
+        <Ionicons name={meta.icon} size={20} color={meta.color} />
       </View>
       <View style={txStyles.info}>
         <Text style={txStyles.title} numberOfLines={1}>
@@ -171,11 +175,22 @@ function CategoryBar({
       {stats.slice(0, 4).map((s, i) => (
         <View key={s.name} style={{ gap: 4 }}>
           <View
-            style={{ flexDirection: "row", justifyContent: "space-between" }}
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
           >
-            <Text style={{ color: TEXT_DIM, fontSize: 13 }}>
-              {getCategoryMeta(s.name).emoji} {s.name}
-            </Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Ionicons
+                name={getCategoryMeta(s.name).icon}
+                size={14}
+                color={TEXT_DIM}
+              />
+              <Text style={{ color: TEXT_DIM, fontSize: 13 }}>{s.name}</Text>
+            </View>
             <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
               ₹{s.total.toLocaleString("en-IN")}
             </Text>
@@ -380,8 +395,19 @@ export default function HomeScreen() {
             <Pressable style={s.avatarCircle}>
               <Text style={s.avatarText}>{initials}</Text>
             </Pressable>
-            <Pressable style={s.iconBtn} onPress={signOut}>
-              <Text style={{ color: MUTED, fontSize: 15 }}>⎋</Text>
+            <Pressable
+              style={s.iconBtn}
+              onPress={async () => {
+                await signOut();
+                router.replace("/");
+              }}
+            >
+              <Ionicons
+                name="log-out-outline"
+                size={18}
+                color={MUTED}
+                style={{ marginLeft: 3 }}
+              />
             </Pressable>
           </View>
         </View>
@@ -425,7 +451,7 @@ export default function HomeScreen() {
         <View style={s.quickRow}>
           {[
             {
-              icon: "➕",
+              icon: "add" as const,
               label: "Add",
               color: ACCENT,
               action: async () => {
@@ -442,19 +468,19 @@ export default function HomeScreen() {
               },
             },
             {
-              icon: "📲",
+              icon: "scan" as const,
               label: "SMS",
               color: GREEN,
               action: () => router.push("/(tabs)/explore"),
             },
             {
-              icon: "👥",
+              icon: "people" as const,
               label: "Split",
               color: PURPLE,
               action: () => router.push("/(tabs)/split"),
             },
             {
-              icon: "📊",
+              icon: "stats-chart" as const,
               label: "Analyse",
               color: "#F59E0B",
               action: () => router.push("/(tabs)/explore"),
@@ -462,7 +488,7 @@ export default function HomeScreen() {
           ].map((a) => (
             <Pressable key={a.label} style={s.qa} onPress={a.action}>
               <View style={[s.qaIcon, { backgroundColor: a.color + "22" }]}>
-                <Text style={{ fontSize: 20 }}>{a.icon}</Text>
+                <Ionicons name={a.icon} size={24} color={a.color} />
               </View>
               <Text style={s.qaLabel}>{a.label}</Text>
             </Pressable>
@@ -488,8 +514,8 @@ export default function HomeScreen() {
 
           {transactions.length === 0 ? (
             <View style={s.empty}>
-              <Text style={{ fontSize: 36 }}>💸</Text>
-              <Text style={{ color: MUTED, marginTop: 8 }}>
+              <Ionicons name="cash-outline" size={42} color={MUTED} />
+              <Text style={{ color: MUTED, marginTop: 12 }}>
                 No transactions yet
               </Text>
             </View>
