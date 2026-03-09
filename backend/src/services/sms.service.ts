@@ -46,6 +46,12 @@ const SMS_RULES: SmsRule[] = [
         pattern:
             /(?:Rs\.?\s*|INR\s*)(?<amount>[\d,]+\.?\d*)\s+(?<type>debited|credited)\s+from\s+Axis\s+Bank\s+A\/c\s*[Xx\d]+\s*(?:on\s*[\d\-/]+)?\s*(?:towards\s*(?<merchant>.+?))?(?=\.|Bal|$)/i,
     },
+    // Axis Bank (Multiline format)
+    {
+        bank: "Axis",
+        pattern:
+            /(?<type>Debit|Credit)\s+(?:INR|Rs\.?)\s*(?<amount>[\d,]+\.?\d*)\s+Axis\s+Bank\s+A\/c\s*[Xx\d]+\s+(?<date>\d{2}-\d{2}-\d{2,4})\s+(?:\d{2}:\d{2}:\d{2})\s+(?<merchant>[^\n\r]+)/i,
+    },
     // Kotak
     {
         bank: "Kotak",
