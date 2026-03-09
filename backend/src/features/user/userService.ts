@@ -1,9 +1,9 @@
+import type { User } from "@prisma/client";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import type { User } from "@prisma/client";
 import { oauthService } from "../../services/oauth.service";
 import { userRepository } from "./userRepository";
-import { AuthResponse } from "./userSchema";
+import { AuthResponse, UpdateUserRequest } from "./userSchema";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 const SALT_ROUNDS = 10;
@@ -12,10 +12,28 @@ const SALT_ROUNDS = 10;
 // All business logic. No Express types. No Prisma. No req/res.
 
 export const userService = {
+  async getAllUsers() {
+    return await userRepository.findAll();
+  },
+
   async getProfile(id: string) {
     const user = await userRepository.findById(id);
     if (!user) throw { status: 404, message: "User not found." };
     return user;
+  },
+
+  async updateUser(id: string, data: UpdateUserRequest) {
+    const user = await userRepository.findById(id);
+    if (!user) throw { status: 404, message: "User not found." };
+
+    return await userRepository.updateProfile(id, data);
+  },
+
+  async deleteUser(id: string) {
+    const user = await userRepository.findById(id);
+    if (!user) throw { status: 404, message: "User not found." };
+
+    return await userRepository.delete(id);
   },
 
   async syncIdentity(params: {

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { ZodSchema } from 'zod';
 import { userController } from './userController';
-import { getUserParamsSchema, syncUserSchema } from './userSchema';
+import { getUserParamsSchema, syncUserSchema, updateUserSchema } from './userSchema';
 
 function validateBody(schema: ZodSchema) {
   return (req: any, res: any, next: any) => {
@@ -28,7 +28,10 @@ function validateParams(schema: ZodSchema) {
 
 const router = Router();
 
+router.get('/', userController.getAllUsers);
 router.post('/sync', validateBody(syncUserSchema), userController.syncIdentity);
 router.get('/:id', validateParams(getUserParamsSchema), userController.getProfile);
+router.put('/:id', validateParams(getUserParamsSchema), validateBody(updateUserSchema), userController.updateUser);
+router.delete('/:id', validateParams(getUserParamsSchema), userController.deleteUser);
 
 export default router;

@@ -5,6 +5,14 @@ import { prisma } from '../../lib/db';
 
 export const userRepository = {
 
+    findAll() {
+        return prisma.user.findMany({
+            include: {
+                authProviders: true,
+            },
+        });
+    },
+
     findByEmail(email: string) {
         return prisma.user.findUnique({ where: { email } });
     },
@@ -87,5 +95,9 @@ export const userRepository = {
                 emailVerified: data.emailVerified,
             },
         });
+    },
+
+    delete(id: string) {
+        return prisma.user.delete({ where: { id } });
     },
 };

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm start",
+    "dev:frontend": "cd frontend && npm run dev",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "bootstrap:infra": "docker compose up -d db redis",
     "bootstrap:backend": "cd backend && npm install && npm run prisma:generate && npm run prisma:seed",

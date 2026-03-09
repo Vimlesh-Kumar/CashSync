@@ -29,10 +29,16 @@ export const getUserParamsSchema = z.object({
     id: z.string().uuid('User ID must be a valid UUID.'),
 });
 
+export const updateUserSchema = z.object({
+    name: z.string().min(2, 'Name must be at least 2 characters.').optional(),
+    avatarUrl: z.string().url('Avatar URL must be a valid URL.').optional(),
+});
+
 // ─── Inferred Request Types ───────────────────────────────────────────────────
 
 export type SyncUserRequest = z.infer<typeof syncUserSchema>;
 export type GetUserParams = z.infer<typeof getUserParamsSchema>;
+export type UpdateUserRequest = z.infer<typeof updateUserSchema>;
 
 // ─── Response Types ───────────────────────────────────────────────────────────
 
