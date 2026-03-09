@@ -3,7 +3,7 @@ import { prisma } from '../../lib/db';
 // ─── User Repository ──────────────────────────────────────────────────────────
 // Only place in the user feature that touches Prisma.
 
-export const userRepository = {
+export class UserRepository {
 
     findAll() {
         return prisma.user.findMany({
@@ -11,11 +11,11 @@ export const userRepository = {
                 authProviders: true,
             },
         });
-    },
+    }
 
     findByEmail(email: string) {
         return prisma.user.findUnique({ where: { email } });
-    },
+    }
 
     findById(id: string) {
         return prisma.user.findUnique({
@@ -26,7 +26,7 @@ export const userRepository = {
                 splits: { where: { isSettled: false }, take: 10 },
             },
         });
-    },
+    }
 
     findByAuthProvider(provider: 'GOOGLE' | 'APPLE', providerUserId: string) {
         return prisma.authProvider.findUnique({
@@ -38,7 +38,7 @@ export const userRepository = {
             },
             include: { user: true },
         });
-    },
+    }
 
     create(data: {
         email: string;
@@ -48,25 +48,25 @@ export const userRepository = {
         password?: string | null;
     }) {
         return prisma.user.create({ data });
-    },
+    }
 
     updateOAuth(id: string, data: { provider: string; providerId?: string | null; name?: string | null }) {
         return prisma.user.update({ where: { id }, data });
-    },
+    }
 
     updateProfile(id: string, data: { name?: string | null; avatarUrl?: string | null }) {
         return prisma.user.update({
             where: { id },
             data,
         });
-    },
+    }
 
     updatePassword(id: string, hashedPassword: string) {
         return prisma.user.update({
             where: { id },
             data: { password: hashedPassword, provider: 'JWT' },
         });
-    },
+    }
 
     upsertAuthProvider(data: {
         userId: string;
@@ -95,9 +95,11 @@ export const userRepository = {
                 emailVerified: data.emailVerified,
             },
         });
-    },
+    }
 
     delete(id: string) {
         return prisma.user.delete({ where: { id } });
-    },
-};
+    }
+}
+
+export const userRepository = new UserRepository();

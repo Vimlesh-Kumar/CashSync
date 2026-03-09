@@ -11,30 +11,30 @@ const SALT_ROUNDS = 10;
 // ─── User Service ─────────────────────────────────────────────────────────────
 // All business logic. No Express types. No Prisma. No req/res.
 
-export const userService = {
+export class UserService {
   async getAllUsers() {
     return await userRepository.findAll();
-  },
+  }
 
   async getProfile(id: string) {
     const user = await userRepository.findById(id);
     if (!user) throw { status: 404, message: "User not found." };
     return user;
-  },
+  }
 
   async updateUser(id: string, data: UpdateUserRequest) {
     const user = await userRepository.findById(id);
     if (!user) throw { status: 404, message: "User not found." };
 
     return await userRepository.updateProfile(id, data);
-  },
+  }
 
   async deleteUser(id: string) {
     const user = await userRepository.findById(id);
     if (!user) throw { status: 404, message: "User not found." };
 
     return await userRepository.delete(id);
-  },
+  }
 
   async syncIdentity(params: {
     email?: string;
@@ -168,5 +168,7 @@ export const userService = {
     );
 
     return { user: safeUser, token };
-  },
-};
+  }
+}
+
+export const userService = new UserService();

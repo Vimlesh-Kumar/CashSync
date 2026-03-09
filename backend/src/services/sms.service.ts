@@ -22,6 +22,12 @@ type SmsRule = {
 };
 
 const SMS_RULES: SmsRule[] = [
+    // Union Bank of India
+    {
+        bank: "Union Bank",
+        pattern:
+            /A\/c\s*\*[\d]+\s+(?<type>Debited|Credited)\s+for\s+Rs:(?<amount>[\d,]+\.?\d*)\s+on\s+(?<date>\d{2}-\d{2}-\d{4})\s+\d{2}:\d{2}:\d{2}\s+by\s+(?<merchant>.*?)\s+ref\s+no\s+(?<refno>\w+)/i,
+    },
     // HDFC Bank
     {
         bank: "HDFC",
