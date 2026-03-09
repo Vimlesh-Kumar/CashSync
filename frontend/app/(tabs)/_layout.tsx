@@ -1,24 +1,25 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 
-const ACCENT = "#4F8EF7";
-const MUTED = "#3D4E68";
-const CARD_BG = "#111827";
-const BORDER = "#1A2235";
+const ACCENT = "#00F260";
+const MUTED = "#A1A1AA";
+const CARD_BG = "#09090B";
+const BORDER = "#27272A";
 
 function TabIcon({
   icon,
   focused,
   label,
 }: {
-  icon: string;
+  icon: any;
   focused: boolean;
   label: string;
 }) {
   return (
     <View style={[ti.wrap, focused && ti.wrapActive]}>
-      <Text style={[ti.icon, focused && ti.iconActive]}>{icon}</Text>
+      <Ionicons name={icon} style={[ti.icon, focused && ti.iconActive]} />
     </View>
   );
 }
@@ -65,16 +66,24 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="⌂" focused={focused} label="Home" />
+            <TabIcon
+              icon={focused ? "home" : "home-outline"}
+              focused={focused}
+              label="Home"
+            />
           ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="insights"
         options={{
-          title: "Transactions",
+          title: "Analytics",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="≡" focused={focused} label="Transactions" />
+            <TabIcon
+              icon={focused ? "bar-chart" : "bar-chart-outline"}
+              focused={focused}
+              label="Analytics"
+            />
           ),
         }}
       />
@@ -83,16 +92,24 @@ export default function TabLayout() {
         options={{
           title: "Split",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="◉" focused={focused} label="Split" />
+            <TabIcon
+              icon={focused ? "git-network" : "git-network-outline"}
+              focused={focused}
+              label="Split"
+            />
           ),
         }}
       />
       <Tabs.Screen
-        name="insights"
+        name="explore"
         options={{
-          title: "Insights",
+          title: "Cards",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="◍" focused={focused} label="Insights" />
+            <TabIcon
+              icon={focused ? "card" : "card-outline"}
+              focused={focused}
+              label="Cards"
+            />
           ),
         }}
       />
@@ -101,7 +118,11 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="☺" focused={focused} label="Profile" />
+            <TabIcon
+              icon={focused ? "person" : "person-outline"}
+              focused={focused}
+              label="Profile"
+            />
           ),
         }}
       />
