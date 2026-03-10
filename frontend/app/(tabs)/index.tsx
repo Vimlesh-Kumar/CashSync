@@ -22,15 +22,15 @@ import {
   TransactionStats,
 } from "@/src/features/transaction";
 
-const ACCENT = "#4F8EF7";
-const GREEN = "#34D399";
-const RED = "#F87171";
-const PURPLE = "#9B59F5";
-const BG = "#0D1117";
-const CARD_BG = "#161D2C";
-const BORDER = "#1E2D46";
-const MUTED = "#4A5568";
-const TEXT_DIM = "#8B9AB3";
+const ACCENT = "#00F260";
+const GREEN = "#00F260";
+const RED = "#FF453A";
+const PURPLE = "#A855F7";
+const BG = "#09090B";
+const CARD_BG = "#1F1F22";
+const BORDER = "#27272A";
+const MUTED = "#A1A1AA";
+const TEXT_DIM = "#D4D4D8";
 
 // ─── Category Icons ──────────────────────────────────────────────────────────
 
@@ -97,9 +97,13 @@ const txStyles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER + "55",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: CARD_BG,
+    borderRadius: 20,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   icon: {
     width: 44,
@@ -124,7 +128,7 @@ const txStyles = StyleSheet.create({
   sharedText: { fontSize: 10, color: ACCENT, fontWeight: "600" },
 });
 
-// ─── Stat Chip ────────────────────────────────────────────────────────────────
+// ─── Stat Chip (Hidden in new design, preserving function) ───────────────────
 
 function StatChip({
   label,
@@ -135,15 +139,7 @@ function StatChip({
   value: string;
   color: string;
 }) {
-  return (
-    <View style={chipStyles.wrap}>
-      <View style={[chipStyles.dot, { backgroundColor: color }]} />
-      <View>
-        <Text style={chipStyles.label}>{label}</Text>
-        <Text style={[chipStyles.value, { color }]}>{value}</Text>
-      </View>
-    </View>
-  );
+  return null;
 }
 
 const chipStyles = StyleSheet.create({
@@ -387,110 +383,111 @@ export default function HomeScreen() {
       >
         {/* ── Header ── */}
         <View style={s.header}>
-          <View>
-            <Text style={s.greeting}>{greeting} 👋</Text>
-            <Text style={s.userName}>{displayName}</Text>
-          </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Pressable style={s.avatarCircle}>
-              <Text style={s.avatarText}>{initials}</Text>
-            </Pressable>
-            <Pressable
-              style={s.iconBtn}
-              onPress={async () => {
-                await signOut();
-                router.replace("/");
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{
+                backgroundColor: GREEN,
+                paddingHorizontal: 6,
+                paddingVertical: 4,
+                borderRadius: 6,
               }}
             >
-              <Ionicons
-                name="log-out-outline"
-                size={18}
-                color={MUTED}
-                style={{ marginLeft: 3 }}
-              />
+              <Text
+                style={{
+                  color: "#000",
+                  fontWeight: "900",
+                  fontSize: 13,
+                  letterSpacing: -0.5,
+                }}
+              >
+                C+S
+              </Text>
+            </View>
+            <Text style={{ color: GREEN, fontWeight: "700", fontSize: 18 }}>
+              CashSync
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Text style={{ color: "#fff", fontSize: 14 }}>
+              {displayName.split(" ")[0]} R.
+            </Text>
+            <Pressable style={s.avatarCircle}>
+              <Text style={s.avatarText}>{initials}</Text>
             </Pressable>
           </View>
         </View>
 
         {/* ── Net Worth Card ── */}
         <View style={s.balanceCard}>
-          <LinearGradient
-            colors={["#1A2580", "#0F1550"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
-          />
-          <View style={s.cardGlow} />
-          <Text style={s.balLabel}>NET BALANCE</Text>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: 8,
+            }}
+          >
+            <Text style={s.balLabel}>
+              Welcome, {displayName.split(" ")[0]}!
+            </Text>
+            <View
+              style={{
+                backgroundColor: GREEN + "20",
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 12,
+              }}
+            >
+              <Text style={{ color: GREEN, fontSize: 11, fontWeight: "700" }}>
+                ↗ +2.8%
+              </Text>
+            </View>
+          </View>
           <Text
             style={[s.balAmount, { color: netBalance >= 0 ? "#fff" : RED }]}
           >
-            {netBalance >= 0 ? "+" : ""}₹
+            ₹
             {Math.abs(netBalance).toLocaleString("en-IN", {
               minimumFractionDigits: 2,
             })}
           </Text>
-          <Text style={s.balEmail}>{user?.email}</Text>
-
-          <View style={s.chipRow}>
-            <StatChip
-              label="Income"
-              value={`₹${(stats?.income || 0).toLocaleString("en-IN")}`}
-              color={GREEN}
-            />
-            <View style={s.divider} />
-            <StatChip
-              label="Expenses"
-              value={`₹${(stats?.expense || 0).toLocaleString("en-IN")}`}
-              color={RED}
-            />
-          </View>
         </View>
 
         {/* ── Quick Actions ── */}
         <View style={s.quickRow}>
           {[
             {
-              icon: "add" as const,
-              label: "Add",
-              color: ACCENT,
-              action: async () => {
-                if (!user) return;
-                await createTransaction({
-                  title: "Manual Expense",
-                  amount: 100,
-                  type: "EXPENSE",
-                  isPersonal: true,
-                  category: "General",
-                  authorId: user.id,
-                });
-                load(true);
-              },
-            },
-            {
-              icon: "scan" as const,
-              label: "SMS",
+              icon: "qr-code-outline" as const,
+              label: "Scan\nReceipt",
               color: GREEN,
               action: () => router.push("/(tabs)/explore"),
             },
             {
-              icon: "people" as const,
-              label: "Split",
+              icon: "receipt-outline" as const,
+              label: "Split\nBill",
               color: PURPLE,
               action: () => router.push("/(tabs)/split"),
             },
             {
-              icon: "stats-chart" as const,
-              label: "Analyse",
-              color: "#F59E0B",
-              action: () => router.push("/(tabs)/explore"),
+              icon: "send-outline" as const,
+              label: "Send\nMoney",
+              color: GREEN,
+              action: () => {},
+            },
+            {
+              icon: "hand-left-outline" as const,
+              label: "Request",
+              color: GREEN,
+              action: () => {},
             },
           ].map((a) => (
             <Pressable key={a.label} style={s.qa} onPress={a.action}>
-              <View style={[s.qaIcon, { backgroundColor: a.color + "22" }]}>
-                <Ionicons name={a.icon} size={24} color={a.color} />
+              <View style={[s.qaIcon]}>
+                <Ionicons name={a.icon} size={22} color={a.color} />
               </View>
-              <Text style={s.qaLabel}>{a.label}</Text>
+              <Text style={[s.qaLabel, { textAlign: "center" }]}>
+                {a.label}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -504,11 +501,11 @@ export default function HomeScreen() {
         )}
 
         {/* ── Recent Transactions ── */}
-        <View style={s.card}>
+        <View style={s.listContainer}>
           <View style={s.cardHeader}>
             <Text style={s.cardTitle}>Recent Activity</Text>
             <Pressable onPress={() => router.push("/(tabs)/explore")}>
-              <Text style={s.seeAll}>See all →</Text>
+              <Text style={s.seeAll}>Slow all</Text>
             </Pressable>
           </View>
 
@@ -585,22 +582,12 @@ const s = StyleSheet.create({
 
   // Balance card
   balanceCard: {
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 24,
     marginBottom: 18,
-    overflow: "hidden",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
-    borderColor: "#1E3A8A22",
-    ...Platform.select({
-      web: { boxShadow: "0 16px 48px rgba(79,142,247,0.2)" },
-      default: {
-        shadowColor: ACCENT,
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 20,
-        elevation: 8,
-      },
-    }),
+    borderColor: BORDER,
   },
   cardGlow: {
     position: "absolute",
@@ -613,17 +600,14 @@ const s = StyleSheet.create({
     right: -30,
   },
   balLabel: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    marginBottom: 6,
+    fontSize: 18,
+    color: MUTED,
+    fontWeight: "600",
   },
   balAmount: {
     fontSize: 42,
     fontWeight: "800",
     letterSpacing: -1,
-    marginBottom: 4,
   },
   balEmail: { fontSize: 12, color: "rgba(255,255,255,0.3)", marginBottom: 20 },
   chipRow: { flexDirection: "row", alignItems: "center", gap: 12 },
@@ -633,22 +617,29 @@ const s = StyleSheet.create({
   quickRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 20,
-    gap: 10,
+    marginBottom: 32,
+    gap: 12,
   },
-  qa: { flex: 1, alignItems: "center", gap: 8 },
+  qa: {
+    flex: 1,
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: CARD_BG,
+    borderRadius: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
   qaIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
   },
-  qaLabel: { fontSize: 11, color: MUTED, fontWeight: "600" },
+  qaLabel: { fontSize: 12, color: MUTED, fontWeight: "600", lineHeight: 16 },
 
   // Card
+  listContainer: {
+    marginBottom: 16,
+  },
   card: {
     backgroundColor: CARD_BG,
     borderRadius: 20,
@@ -662,9 +653,10 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    paddingHorizontal: 4,
   },
-  cardTitle: { fontSize: 16, fontWeight: "700", color: "#fff" },
-  seeAll: { fontSize: 13, color: ACCENT, fontWeight: "600" },
+  cardTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },
+  seeAll: { fontSize: 14, color: PURPLE, fontWeight: "600" },
 
   // Empty
   empty: { alignItems: "center", paddingVertical: 32 },
