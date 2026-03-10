@@ -1,6 +1,6 @@
 # CashSync: Product Design & Feature Roadmap
 
-![CashSync App UI Mockup](/Users/vimleshkumar/.gemini/antigravity/brain/1edef2fd-db4b-4b2c-9125-b6406ce8f1bd/cashsync_ui_mockup_1772902485788.png)
+![CashSync App UI Mockup](./docs/assets/cashsync_ui_mockup.png)
 
 ## 1. Vision & Core Concept
 
