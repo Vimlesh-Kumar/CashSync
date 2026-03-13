@@ -31,6 +31,7 @@ const CARD_BG = "#1F1F22";
 const BORDER = "#27272A";
 const MUTED = "#A1A1AA";
 const TEXT_DIM = "#D4D4D8";
+const AMBER = "#FBBF24";
 
 // ─── Category Icons ──────────────────────────────────────────────────────────
 
@@ -57,11 +58,22 @@ function getCategoryMeta(cat: string) {
   return CATEGORY_META[cat] || CATEGORY_META["General"];
 }
 
+function getReviewBadge(tx: Transaction) {
+  if (tx.reviewState === "SPLIT") {
+    return { label: "Split", color: ACCENT, background: ACCENT + "22" };
+  }
+  if (tx.reviewState === "PERSONAL") {
+    return { label: "Personal", color: GREEN, background: GREEN + "22" };
+  }
+  return { label: "Needs Label", color: AMBER, background: AMBER + "22" };
+}
+
 // ─── Mini Transaction Row ─────────────────────────────────────────────────────
 
 function TxRow({ tx }: { tx: Transaction }) {
   const isCredit = tx.type === "INCOME";
   const meta = getCategoryMeta(tx.category);
+  const review = getReviewBadge(tx);
   return (
     <View style={txStyles.row}>
       <View style={[txStyles.icon, { backgroundColor: meta.color + "20" }]}>
@@ -83,11 +95,16 @@ function TxRow({ tx }: { tx: Transaction }) {
         <Text style={[txStyles.amount, { color: isCredit ? GREEN : "#fff" }]}>
           {isCredit ? "+" : "−"}₹{tx.amount.toLocaleString("en-IN")}
         </Text>
-        {!tx.isPersonal && (
-          <View style={txStyles.sharedPill}>
-            <Text style={txStyles.sharedText}>Shared</Text>
-          </View>
-        )}
+        <View
+          style={[
+            txStyles.sharedPill,
+            { backgroundColor: review.background },
+          ]}
+        >
+          <Text style={[txStyles.sharedText, { color: review.color }]}>
+            {review.label}
+          </Text>
+        </View>
       </View>
     </View>
   );

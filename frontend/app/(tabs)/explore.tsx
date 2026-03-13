@@ -30,6 +30,7 @@ const BORDER = "#1E2D46";
 const ACCENT = "#4F8EF7";
 const GREEN = "#34D399";
 const RED = "#F87171";
+const AMBER = "#FBBF24";
 const MUTED = "#4A5568";
 const TEXT_DIM = "#8B9AB3";
 
@@ -48,6 +49,7 @@ const CATEGORIES = [
 ];
 const TYPES = ["All", "EXPENSE", "INCOME", "TRANSFER"];
 const SOURCES = ["All", "MANUAL", "SMS", "EMAIL", "API"];
+const REVIEW_STATES = ["ALL", "UNREVIEWED", "PERSONAL", "SPLIT"] as const;
 
 const CATEGORY_META: Record<
   string,
@@ -66,6 +68,31 @@ const CATEGORY_META: Record<
 };
 function getMeta(cat: string) {
   return CATEGORY_META[cat] || CATEGORY_META["General"];
+}
+
+function getReviewMeta(tx: Transaction) {
+  if (tx.reviewState === "SPLIT") {
+    const others = tx.splits.filter((split) => split.user.id !== tx.authorId).length;
+    return {
+      label: others > 0 ? `Split · ${others} ${others === 1 ? "person" : "people"}` : "Split",
+      color: ACCENT,
+      background: ACCENT + "22",
+    };
+  }
+
+  if (tx.reviewState === "PERSONAL") {
+    return {
+      label: "Personal",
+      color: GREEN,
+      background: GREEN + "22",
+    };
+  }
+
+  return {
+    label: "Needs Label",
+    color: AMBER,
+    background: AMBER + "22",
+  };
 }
 
 // ─── SMS Modal ────────────────────────────────────────────────────────────────
@@ -324,21 +351,41 @@ function RenameModal({
   tx,
   onClose,
   onSaved,
+  onOpenSplit,
 }: {
   tx: Transaction;
   onClose: () => void;
   onSaved: () => void;
+  onOpenSplit: (tx: Transaction) => void;
 }) {
   const [title, setTitle] = useState(tx.title);
   const [note, setNote] = useState(tx.note || "");
   const [category, setCategory] = useState(tx.category);
-  const [isPersonal, setIsPersonal] = useState(tx.isPersonal);
+  const [decision, setDecision] = useState<"PERSONAL" | "SPLIT" | null>(
+    tx.reviewState === "UNREVIEWED" ? null : tx.reviewState,
+  );
   const [loading, setLoading] = useState(false);
 
   const save = async () => {
+    if (!decision) return;
+
     setLoading(true);
     try {
-      await updateTransaction(tx.id, { title, note, category, isPersonal });
+      if (decision === "SPLIT") {
+        await updateTransaction(tx.id, { title, note, category });
+        onClose();
+        onOpenSplit({ ...tx, title, note, category });
+        return;
+      }
+
+      await updateTransaction(tx.id, {
+        title,
+        note,
+        category,
+        isPersonal: true,
+        reviewState: "PERSONAL",
+        groupId: null,
+      });
       onSaved();
       onClose();
     } catch (_) {
@@ -357,6 +404,10 @@ function RenameModal({
           <Text style={[smsS.sub, { opacity: 0.6 }]}>
             Original: {tx.originalTitle || tx.title}
           </Text>
+          <Text style={smsS.sub}>
+            Label this transaction as personal or split. Once saved, CashSync
+            hides the other path from the list until you edit it again.
+          </Text>
 
           <TextInput
             style={[smsS.input, { minHeight: 0 }]}
@@ -374,25 +425,53 @@ function RenameModal({
             placeholderTextColor="#3D4E68"
             selectionColor={ACCENT}
           />
-          <Pressable
-            onPress={() => setIsPersonal((v) => !v)}
-            style={[
-              smsS.resultBox,
-              {
-                borderColor: isPersonal ? GREEN + "44" : ACCENT + "44",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              },
-            ]}
-          >
-            <Text style={{ color: "#fff", fontSize: 13 }}>Personal Use</Text>
-            <Text
-              style={{ color: isPersonal ? GREEN : ACCENT, fontWeight: "700" }}
+          <View style={r.choiceRow}>
+            <Pressable
+              onPress={() => setDecision("PERSONAL")}
+              style={[
+                r.choiceCard,
+                decision === "PERSONAL" && {
+                  borderColor: GREEN,
+                  backgroundColor: GREEN + "14",
+                },
+              ]}
             >
-              {isPersonal ? "ON" : "OFF"}
-            </Text>
-          </Pressable>
+              <Text
+                style={[
+                  r.choiceTitle,
+                  decision === "PERSONAL" && { color: GREEN },
+                ]}
+              >
+                Personal
+              </Text>
+              <Text style={r.choiceBody}>
+                Track it as your own expense, income, or credit.
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setDecision("SPLIT")}
+              style={[
+                r.choiceCard,
+                decision === "SPLIT" && {
+                  borderColor: ACCENT,
+                  backgroundColor: ACCENT + "14",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  r.choiceTitle,
+                  decision === "SPLIT" && { color: ACCENT },
+                ]}
+              >
+                Split
+              </Text>
+              <Text style={r.choiceBody}>
+                Share it with a group, one person, or multiple people.
+              </Text>
+            </Pressable>
+          </View>
 
           {/* Category picker */}
           <ScrollView
@@ -442,15 +521,42 @@ function RenameModal({
             ))}
           </ScrollView>
 
+          <View
+            style={[
+              smsS.resultBox,
+              {
+                borderColor:
+                  decision === "SPLIT" ? ACCENT + "44" : GREEN + "44",
+              },
+            ]}
+          >
+            <Text style={{ color: "#fff", fontSize: 13 }}>
+              {decision === "SPLIT"
+                ? "Split setup opens next, where you can choose whole group, one person, or multiple people."
+                : decision === "PERSONAL"
+                  ? "Saving as personal clears any existing split and keeps it only in your private cashflow."
+                  : "Choose a label to continue."}
+            </Text>
+          </View>
+
           <View style={smsS.btnRow}>
             <Pressable style={smsS.cancelBtn} onPress={onClose}>
               <Text style={{ color: MUTED, fontWeight: "600" }}>Cancel</Text>
             </Pressable>
-            <Pressable style={smsS.submitBtn} onPress={save} disabled={loading}>
+            <Pressable
+              style={[
+                smsS.submitBtn,
+                !decision && { opacity: 0.5 },
+              ]}
+              onPress={save}
+              disabled={loading || !decision}
+            >
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={smsS.submitText}>Save</Text>
+                <Text style={smsS.submitText}>
+                  {decision === "SPLIT" ? "Continue to Split" : "Save Personal"}
+                </Text>
               )}
             </Pressable>
           </View>
@@ -475,7 +581,18 @@ function SplitModal({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
     tx.groupId ?? null,
   );
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [splitMode, setSplitMode] = useState<"GROUP" | "INDIVIDUAL" | "MULTIPLE">(
+    tx.splits.length === 0
+      ? "GROUP"
+      : tx.splits.length <= 2
+        ? "INDIVIDUAL"
+        : "MULTIPLE",
+  );
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>(
+    tx.splits
+      .filter((split) => split.user.id !== authorId)
+      .map((split) => split.user.id),
+  );
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -495,36 +612,67 @@ function SplitModal({
   }, [authorId]);
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) || null;
+  const otherMembers =
+    selectedGroup?.members.filter((member) => member.user.id !== authorId) || [];
 
   useEffect(() => {
     if (!selectedGroup) {
-      setSelectedMemberIds([]);
+      setSelectedParticipantIds([]);
       return;
     }
-    setSelectedMemberIds(selectedGroup.members.map((m) => m.user.id));
-  }, [selectedGroupId, selectedGroup?.members.length]);
+    const existingParticipantIds = tx.splits
+      .filter((split) => split.user.id !== authorId)
+      .map((split) => split.user.id)
+      .filter((id) => otherMembers.some((member) => member.user.id === id));
 
-  const toggleMember = (id: string) => {
-    setSelectedMemberIds((prev) =>
+    if (existingParticipantIds.length > 0) {
+      if (splitMode === "INDIVIDUAL") {
+        setSelectedParticipantIds(existingParticipantIds.slice(0, 1));
+        return;
+      }
+
+      if (splitMode === "MULTIPLE") {
+        setSelectedParticipantIds(existingParticipantIds);
+        return;
+      }
+    }
+
+    if (splitMode === "INDIVIDUAL") {
+      setSelectedParticipantIds(otherMembers[0] ? [otherMembers[0].user.id] : []);
+      return;
+    }
+    setSelectedParticipantIds(otherMembers.map((member) => member.user.id));
+  }, [selectedGroupId, selectedGroup?.members.length, splitMode, authorId, tx.splits]);
+
+  const toggleParticipant = (id: string) => {
+    if (splitMode === "INDIVIDUAL") {
+      setSelectedParticipantIds([id]);
+      return;
+    }
+    setSelectedParticipantIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
+  const splitUserIds = [
+    authorId,
+    ...(splitMode === "GROUP"
+      ? otherMembers.map((member) => member.user.id)
+      : selectedParticipantIds),
+  ];
+
   const save = async () => {
-    if (!selectedGroupId || !selectedMemberIds.length) return;
+    if (!selectedGroupId || splitUserIds.length <= 1) return;
 
     setLoading(true);
     try {
       await addSplits(
         tx.id,
-        selectedMemberIds.map((id) => ({ userId: id })),
+        splitUserIds.map((id) => ({ userId: id })),
         "EQUAL",
         tx.amount,
+        selectedGroupId,
       );
-      await updateTransaction(tx.id, {
-        isPersonal: false,
-        groupId: selectedGroupId,
-      });
       onSaved();
       onClose();
     } catch (_) {
@@ -541,7 +689,10 @@ function SplitModal({
             <Ionicons name="people" size={20} color={ACCENT} /> Split
             Transaction
           </Text>
-          <Text style={smsS.sub}>Pick a group and members by name.</Text>
+          <Text style={smsS.sub}>
+            Choose whether this should be shared with the whole group, one
+            person, or multiple people.
+          </Text>
           <Text style={[smsS.sub, { opacity: 0.7 }]}>
             Amount: ₹{tx.amount.toLocaleString("en-IN")} · Method: Equal split
           </Text>
@@ -579,39 +730,95 @@ function SplitModal({
             ))}
           </ScrollView>
 
+          <View style={r.choiceRow}>
+            {[
+              { id: "GROUP", label: "Group", body: "Everyone in the group" },
+              { id: "INDIVIDUAL", label: "One Person", body: "Split with one person" },
+              { id: "MULTIPLE", label: "Multiple", body: "Choose a few people" },
+            ].map((option) => (
+              <Pressable
+                key={option.id}
+                onPress={() =>
+                  setSplitMode(option.id as "GROUP" | "INDIVIDUAL" | "MULTIPLE")
+                }
+                style={[
+                  r.choiceCard,
+                  splitMode === option.id && {
+                    borderColor: ACCENT,
+                    backgroundColor: ACCENT + "14",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    r.choiceTitle,
+                    splitMode === option.id && { color: ACCENT },
+                  ]}
+                >
+                  {option.label}
+                </Text>
+                <Text style={r.choiceBody}>{option.body}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           {selectedGroup && (
             <View style={{ gap: 8 }}>
-              <Text style={[smsS.sub, { marginTop: 4 }]}>Members</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {selectedGroup.members.map((member) => {
-                  const selected = selectedMemberIds.includes(member.user.id);
-                  return (
-                    <Pressable
-                      key={member.id}
-                      onPress={() => toggleMember(member.user.id)}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                        borderRadius: 18,
-                        borderWidth: 1,
-                        borderColor: selected ? GREEN : BORDER,
-                        backgroundColor: selected ? GREEN + "22" : CARD_BG,
-                      }}
-                    >
-                      <Text
+              <Text style={[smsS.sub, { marginTop: 4 }]}>
+                {splitMode === "GROUP"
+                  ? `Everyone in ${selectedGroup.name} will be included.`
+                  : splitMode === "INDIVIDUAL"
+                    ? "Choose one person to split with."
+                    : "Choose multiple people to split with."}
+              </Text>
+              {splitMode !== "GROUP" && (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {otherMembers.map((member) => {
+                    const selected = selectedParticipantIds.includes(
+                      member.user.id,
+                    );
+                    return (
+                      <Pressable
+                        key={member.id}
+                        onPress={() => toggleParticipant(member.user.id)}
                         style={{
-                          color: selected ? GREEN : TEXT_DIM,
-                          fontSize: 12,
-                          fontWeight: "700",
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderRadius: 18,
+                          borderWidth: 1,
+                          borderColor: selected ? GREEN : BORDER,
+                          backgroundColor: selected ? GREEN + "22" : CARD_BG,
                         }}
                       >
-                        {member.user.name ||
-                          member.user.email.split("@")[0] ||
-                          "Member"}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                        <Text
+                          style={{
+                            color: selected ? GREEN : TEXT_DIM,
+                            fontSize: 12,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {member.user.name ||
+                            member.user.email.split("@")[0] ||
+                            "Member"}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+              <View
+                style={[
+                  smsS.resultBox,
+                  {
+                    borderColor: ACCENT + "44",
+                  },
+                ]}
+              >
+                <Text style={{ color: "#fff", fontSize: 13 }}>
+                  {splitMode === "GROUP"
+                    ? `CashSync will split this across ${selectedGroup.members.length} people including you.`
+                    : `CashSync will split this across ${splitUserIds.length} people including you.`}
+                </Text>
               </View>
             </View>
           )}
@@ -631,7 +838,7 @@ function SplitModal({
             <Pressable
               style={smsS.submitBtn}
               onPress={save}
-              disabled={loading || !selectedGroup || !selectedMemberIds.length}
+              disabled={loading || !selectedGroup || splitUserIds.length <= 1}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />
@@ -655,6 +862,8 @@ export default function ExploreScreen() {
   const [filterCat, setFilterCat] = useState("All");
   const [filterType, setFilterType] = useState("All");
   const [filterSource, setFilterSource] = useState("All");
+  const [filterReviewState, setFilterReviewState] =
+    useState<(typeof REVIEW_STATES)[number]>("ALL");
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<"ALL" | "7D" | "30D">("ALL");
   const [smsOpen, setSmsOpen] = useState(false);
@@ -669,6 +878,7 @@ export default function ExploreScreen() {
       if (filterCat !== "All") opts.category = filterCat;
       if (filterType !== "All") opts.type = filterType;
       if (filterSource !== "All") opts.source = filterSource;
+      if (filterReviewState !== "ALL") opts.reviewState = filterReviewState;
       if (search.trim()) opts.q = search.trim();
       if (dateRange !== "ALL") {
         const days = dateRange === "7D" ? 7 : 30;
@@ -681,7 +891,7 @@ export default function ExploreScreen() {
     } finally {
       setLoading(false);
     }
-  }, [user, filterCat, filterType, filterSource, search, dateRange]);
+  }, [user, filterCat, filterType, filterSource, filterReviewState, search, dateRange]);
 
   useEffect(() => {
     fetch();
@@ -766,6 +976,34 @@ export default function ExploreScreen() {
           ))}
         </ScrollView>
 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.pills}
+          style={{ marginBottom: 12 }}
+        >
+          {REVIEW_STATES.map((state) => (
+            <Pressable
+              key={state}
+              onPress={() => setFilterReviewState(state)}
+              style={[s.pill, filterReviewState === state && s.pillActive]}
+            >
+              <Text
+                style={[
+                  s.pillText,
+                  filterReviewState === state && s.pillTextActive,
+                ]}
+              >
+                {state === "ALL"
+                  ? "All Labels"
+                  : state === "UNREVIEWED"
+                    ? "Needs Label"
+                    : state}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
         {/* ── Date filter ── */}
         <ScrollView
           horizontal
@@ -836,11 +1074,7 @@ export default function ExploreScreen() {
           </View>
         ) : (
           transactions.map((tx) => (
-            <Pressable
-              key={tx.id}
-              onLongPress={() => setEditTx(tx)}
-              onPress={() => setSplitTx(tx)}
-            >
+            <Pressable key={tx.id} onPress={() => setEditTx(tx)}>
               <TxCard tx={tx} />
             </Pressable>
           ))
@@ -848,7 +1082,8 @@ export default function ExploreScreen() {
 
         {transactions.length > 0 && (
           <Text style={s.hint}>
-            Tap to split. Long-press to rename or re-categorise.
+            Tap a transaction to label it as personal or split, then edit it
+            anytime if someone tapped the wrong option.
           </Text>
         )}
       </ScrollView>
@@ -867,6 +1102,7 @@ export default function ExploreScreen() {
           tx={editTx}
           onClose={() => setEditTx(null)}
           onSaved={fetch}
+          onOpenSplit={(tx) => setSplitTx(tx)}
         />
       )}
       {splitTx && (
@@ -886,6 +1122,13 @@ export default function ExploreScreen() {
 function TxCard({ tx }: { tx: Transaction }) {
   const isCredit = tx.type === "INCOME";
   const meta = getMeta(tx.category);
+  const review = getReviewMeta(tx);
+  const helperText =
+    tx.reviewState === "UNREVIEWED"
+      ? "Tap to label as Personal or Split"
+      : tx.reviewState === "SPLIT"
+        ? "Tap to manage the split"
+        : "Tap to edit this personal transaction";
   return (
     <View style={c.card}>
       <View style={[c.icon, { backgroundColor: meta.color + "22" }]}>
@@ -900,6 +1143,7 @@ function TxCard({ tx }: { tx: Transaction }) {
             {tx.note}
           </Text>
         ) : null}
+        <Text style={c.helper}>{helperText}</Text>
         <View
           style={{
             flexDirection: "row",
@@ -923,11 +1167,9 @@ function TxCard({ tx }: { tx: Transaction }) {
               <Text style={[c.catText, { color: "#9B59F5" }]}>{tx.source}</Text>
             </View>
           )}
-          {!tx.isPersonal && (
-            <View style={[c.catPill, { backgroundColor: ACCENT + "22" }]}>
-              <Text style={[c.catText, { color: ACCENT }]}>Shared</Text>
-            </View>
-          )}
+          <View style={[c.catPill, { backgroundColor: review.background }]}>
+            <Text style={[c.catText, { color: review.color }]}>{review.label}</Text>
+          </View>
         </View>
       </View>
       <Text style={[c.amount, { color: isCredit ? GREEN : "#fff" }]}>
@@ -959,6 +1201,7 @@ const c = StyleSheet.create({
   info: { flex: 1 },
   title: { fontSize: 15, fontWeight: "700", color: "#fff", marginBottom: 2 },
   note: { fontSize: 12, color: TEXT_DIM, marginBottom: 2 },
+  helper: { fontSize: 11, color: MUTED, marginBottom: 2 },
   date: { fontSize: 11, color: MUTED },
   catPill: {
     backgroundColor: "#ffffff10",
@@ -968,6 +1211,30 @@ const c = StyleSheet.create({
   },
   catText: { fontSize: 10, color: TEXT_DIM, fontWeight: "600" },
   amount: { fontSize: 16, fontWeight: "700", marginLeft: 8 },
+});
+
+const r = StyleSheet.create({
+  choiceRow: {
+    gap: 10,
+  },
+  choiceCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD_BG,
+    padding: 14,
+    gap: 6,
+  },
+  choiceTitle: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  choiceBody: {
+    color: TEXT_DIM,
+    fontSize: 12,
+    lineHeight: 18,
+  },
 });
 
 const s = StyleSheet.create({

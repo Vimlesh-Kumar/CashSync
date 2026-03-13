@@ -28,6 +28,24 @@ export const TransactionCard: React.FC<{ transaction: Transaction }> = ({
     ? `+$${transaction.amount.toFixed(2)}`
     : `-$${transaction.amount.toFixed(2)}`;
   const { emoji, color } = getCategoryIcon(transaction.category || "General");
+  const reviewMeta =
+    transaction.reviewState === "SPLIT"
+      ? {
+          label: "Split",
+          color: "#A1CEDC",
+          background: "rgba(161, 206, 220, 0.1)",
+        }
+      : transaction.reviewState === "PERSONAL"
+        ? {
+            label: "Personal",
+            color: "#39FF14",
+            background: "rgba(57, 255, 20, 0.1)",
+          }
+        : {
+            label: "Needs Label",
+            color: "#FFD93D",
+            background: "rgba(255, 217, 61, 0.12)",
+          };
 
   return (
     <View style={styles.card}>
@@ -50,9 +68,17 @@ export const TransactionCard: React.FC<{ transaction: Transaction }> = ({
         >
           {displayAmount}
         </Text>
-        {!transaction.isPersonal && (
-          <Text style={styles.sharedBadge}>Shared</Text>
-        )}
+        <Text
+          style={[
+            styles.sharedBadge,
+            {
+              color: reviewMeta.color,
+              backgroundColor: reviewMeta.background,
+            },
+          ]}
+        >
+          {reviewMeta.label}
+        </Text>
       </View>
     </View>
   );
@@ -110,9 +136,7 @@ const styles = StyleSheet.create({
   },
   sharedBadge: {
     fontSize: 10,
-    color: "#A1CEDC",
     fontWeight: "600",
-    backgroundColor: "rgba(161, 206, 220, 0.1)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,

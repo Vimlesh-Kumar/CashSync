@@ -23,6 +23,7 @@ class TransactionController extends BaseController {
         category?: string;
         type?: string;
         source?: string;
+        reviewState?: string;
         q?: string;
         from?: string;
         to?: string;
@@ -33,11 +34,12 @@ class TransactionController extends BaseController {
         category: query.category,
         type: query.type,
         source: query.source,
+        reviewState: query.reviewState,
         q: query.q,
         from: query.from,
         to: query.to,
-        limit: query.limit ? parseInt(query.limit, 10) : undefined,
-        offset: query.offset ? parseInt(query.offset, 10) : undefined,
+        limit: query.limit ? Number.parseInt(query.limit, 10) : undefined,
+        offset: query.offset ? Number.parseInt(query.offset, 10) : undefined,
       });
 
       return this.ok(result);
