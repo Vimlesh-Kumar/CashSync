@@ -1,8 +1,11 @@
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
-import { Slot, useRouter, useSegments } from "expo-router";
+import * as SystemUI from "expo-system-ui";
+import { Redirect, Stack, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
+
+import AuthScreen from "./index";
 
 /**
  * AuthGate: sits between the provider and screens.
@@ -11,22 +14,8 @@ import { ActivityIndicator, View } from "react-native";
  */
 function AuthGate() {
   const { user, initialising } = useAuth();
-  const router = useRouter();
   const segments = useSegments();
-
-  useEffect(() => {
-    if (initialising) return; // wait until storage is checked
-
-    const inAuthGroup = segments[0] !== "(tabs)";
-
-    if (user && inAuthGroup) {
-      // Logged in → send to dashboard
-      router.replace("/(tabs)");
-    } else if (!user && !inAuthGroup) {
-      // Not logged in → send to login
-      router.replace("/");
-    }
-  }, [user, initialising, segments]);
+  const inTabsGroup = segments[0] === "(tabs)";
 
   // Show a full-screen splash while we check AsyncStorage
   if (initialising) {
@@ -44,7 +33,25 @@ function AuthGate() {
     );
   }
 
-  return <Slot />;
+  if (!user) {
+    return <AuthScreen />;
+  }
+
+  if (user && !inTabsGroup) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "none",
+        contentStyle: {
+          backgroundColor: "#0D1117",
+        },
+      }}
+    />
+  );
 }
 
 /**
@@ -52,6 +59,10 @@ function AuthGate() {
  * screen can access auth state via useAuth().
  */
 export default function RootLayout() {
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync("#0D1117");
+  }, []);
+
   return (
     <AuthProvider>
       <StatusBar style="light" />
