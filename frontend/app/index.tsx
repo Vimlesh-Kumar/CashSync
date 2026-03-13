@@ -30,20 +30,20 @@ export default function AuthScreen() {
   const [error, setError] = useState<string | null>(null);
 
   // Entrance animations
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(40)).current;
+  const fadeAnim = useRef(new Animated.Value(0.92)).current;
+  const slideAnim = useRef(new Animated.Value(10)).current;
   const tabSlide = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 220,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 500,
+        duration: 220,
         useNativeDriver: true,
       }),
     ]).start();
