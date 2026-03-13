@@ -8,6 +8,7 @@ export interface TransactionFilters {
     category?: string;
     type?: string;
     source?: string;
+    reviewState?: string;
     q?: string;
     from?: Date;
     to?: Date;
@@ -25,6 +26,7 @@ export interface CreateTransactionData {
     sourceId?: string | null;
     hash: string;
     isPersonal?: boolean;
+    reviewState?: string;
     category: string;
     date: Date;
     authorId: string;
@@ -39,6 +41,7 @@ export const transactionRepository = {
         if (filters.category) where.category = filters.category;
         if (filters.type) where.type = filters.type;
         if (filters.source) where.source = filters.source;
+        if (filters.reviewState) where.reviewState = filters.reviewState;
         if (filters.from || filters.to) {
             where.date = {};
             if (filters.from) where.date.gte = filters.from;
@@ -90,6 +93,7 @@ export const transactionRepository = {
                 sourceId: data.sourceId ?? null,
                 hash: data.hash,
                 isPersonal: data.isPersonal ?? true,
+                reviewState: data.reviewState ?? 'UNREVIEWED',
                 category: data.category,
                 date: data.date,
                 author: { connect: { id: data.authorId } },
@@ -99,7 +103,7 @@ export const transactionRepository = {
         });
     },
 
-    update(id: string, data: { title?: string; note?: string; category?: string; isPersonal?: boolean; groupId?: string | null }) {
+    update(id: string, data: { title?: string; note?: string; category?: string; isPersonal?: boolean; reviewState?: string; groupId?: string | null }) {
         return prisma.transaction.update({
             where: { id },
             data: {
@@ -107,11 +111,30 @@ export const transactionRepository = {
                 ...(data.note !== undefined && { note: data.note }),
                 ...(data.category !== undefined && { category: data.category }),
                 ...(data.isPersonal !== undefined && { isPersonal: data.isPersonal }),
+                ...(data.reviewState !== undefined && { reviewState: data.reviewState }),
                 ...(data.groupId !== undefined && {
                     group: data.groupId ? { connect: { id: data.groupId } } : { disconnect: true },
                 }),
             },
             include: { splits: true },
+        });
+    },
+
+    markAsPersonal(id: string, data: { title?: string; note?: string; category?: string }) {
+        return prisma.$transaction(async (tx) => {
+            await tx.split.deleteMany({ where: { transactionId: id } });
+            return tx.transaction.update({
+                where: { id },
+                data: {
+                    ...(data.title !== undefined && { title: data.title }),
+                    ...(data.note !== undefined && { note: data.note }),
+                    ...(data.category !== undefined && { category: data.category }),
+                    isPersonal: true,
+                    reviewState: 'PERSONAL',
+                    group: { disconnect: true },
+                },
+                include: { splits: true },
+            });
         });
     },
 
@@ -137,6 +160,47 @@ export const transactionRepository = {
             include: {
                 user: { select: { id: true, name: true, email: true, avatarUrl: true } },
             },
+        });
+    },
+
+    saveSplitConfig(
+        transactionId: string,
+        data: {
+            splits: Array<{ userId: string; amountOwed: number; splitMethod: string }>;
+            groupId?: string | null;
+        }
+    ) {
+        return prisma.$transaction(async (tx) => {
+            await tx.split.deleteMany({ where: { transactionId } });
+
+            const splits = await Promise.all(
+                data.splits.map((split) =>
+                    tx.split.create({
+                        data: {
+                            transactionId,
+                            userId: split.userId,
+                            amountOwed: split.amountOwed,
+                            splitMethod: split.splitMethod,
+                        },
+                        include: {
+                            user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+                        },
+                    })
+                )
+            );
+
+            await tx.transaction.update({
+                where: { id: transactionId },
+                data: {
+                    isPersonal: false,
+                    reviewState: 'SPLIT',
+                    ...(data.groupId !== undefined && {
+                        group: data.groupId ? { connect: { id: data.groupId } } : { disconnect: true },
+                    }),
+                },
+            });
+
+            return splits;
         });
     },
 

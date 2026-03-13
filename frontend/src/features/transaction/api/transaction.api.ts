@@ -23,6 +23,7 @@ export interface Transaction {
     category: string;
     source: string;
     isPersonal: boolean;
+    reviewState: 'UNREVIEWED' | 'PERSONAL' | 'SPLIT';
     date: string;
     splits: SplitMember[];
     authorId: string;
@@ -61,6 +62,7 @@ export const getTransactions = async (
         category?: string;
         type?: string;
         source?: string;
+        reviewState?: 'UNREVIEWED' | 'PERSONAL' | 'SPLIT';
         q?: string;
         from?: string;
         to?: string;
@@ -70,6 +72,7 @@ export const getTransactions = async (
     if (opts.category) params.set('category', opts.category);
     if (opts.type) params.set('type', opts.type);
     if (opts.source) params.set('source', opts.source);
+    if (opts.reviewState) params.set('reviewState', opts.reviewState);
     if (opts.q) params.set('q', opts.q);
     if (opts.from) params.set('from', opts.from);
     if (opts.to) params.set('to', opts.to);
@@ -83,6 +86,7 @@ export const createTransaction = async (data: {
     source?: string;
     category?: string;
     isPersonal?: boolean;
+    reviewState?: 'UNREVIEWED' | 'PERSONAL' | 'SPLIT';
     authorId: string;
     note?: string;
     groupId?: string;
@@ -91,7 +95,14 @@ export const createTransaction = async (data: {
 
 export const updateTransaction = async (
     id: string,
-    data: { title?: string; note?: string; category?: string; isPersonal?: boolean; groupId?: string | null }
+    data: {
+        title?: string;
+        note?: string;
+        category?: string;
+        isPersonal?: boolean;
+        reviewState?: 'UNREVIEWED' | 'PERSONAL' | 'SPLIT';
+        groupId?: string | null;
+    }
 ): Promise<Transaction> => req(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
 export const ingestSms = async (rawSms: string, authorId: string): Promise<Transaction & { deduplicated?: boolean }> =>
@@ -103,9 +114,10 @@ export const addSplits = async (
     transactionId: string,
     splits: Array<{ userId: string; amountOwed?: number; percentage?: number; shares?: number }>,
     method: 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES' = 'EQUAL',
-    totalAmount?: number
+    totalAmount?: number,
+    groupId?: string | null
 ): Promise<SplitMember[]> =>
-    req(`/transactions/${transactionId}/splits`, { method: 'POST', body: JSON.stringify({ splits, method, totalAmount }) });
+    req(`/transactions/${transactionId}/splits`, { method: 'POST', body: JSON.stringify({ splits, method, totalAmount, groupId }) });
 
 export const settleSplit = async (splitId: string): Promise<SplitMember> =>
     req(`/transactions/splits/${splitId}/settle`, { method: 'PATCH' });

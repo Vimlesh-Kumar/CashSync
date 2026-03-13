@@ -79,6 +79,7 @@ export const transactionService = {
         category?: string;
         type?: string;
         source?: string;
+        reviewState?: string;
         q?: string;
         from?: string;
         to?: string;
@@ -91,6 +92,7 @@ export const transactionService = {
             category: params.category,
             type: params.type,
             source: params.source,
+            reviewState: params.reviewState,
             q: params.q,
             from: params.from ? new Date(params.from) : undefined,
             to: params.to ? new Date(params.to) : undefined,
@@ -117,6 +119,12 @@ export const transactionService = {
         // Smart auto-categorisation (user rules → system rules)
         const userRules = await transactionRepository.findCategoryRules(params.authorId);
         const finalCategory = params.category || autoCategory(params.title, userRules);
+        const inferredReviewState = params.reviewState
+            ?? (params.isPersonal === false || !!params.groupId
+                ? 'SPLIT'
+                : params.source && params.source !== 'MANUAL'
+                    ? 'UNREVIEWED'
+                    : 'PERSONAL');
 
         return transactionRepository.create({
             title: params.title,
@@ -125,7 +133,8 @@ export const transactionService = {
             source: params.source,
             sourceId: params.sourceId,
             hash,
-            isPersonal: params.isPersonal,
+            isPersonal: params.isPersonal ?? (inferredReviewState !== 'SPLIT'),
+            reviewState: inferredReviewState,
             category: finalCategory,
             note: params.note,
             date: txDate,
@@ -135,6 +144,25 @@ export const transactionService = {
     },
 
     async update(id: string, data: UpdateTransactionRequest) {
+        const nextReviewState = data.reviewState
+            ?? (data.isPersonal === true ? 'PERSONAL' : data.isPersonal === false ? 'SPLIT' : undefined);
+
+        if (nextReviewState === 'PERSONAL') {
+            return transactionRepository.markAsPersonal(id, {
+                title: data.title,
+                note: data.note,
+                category: data.category,
+            });
+        }
+
+        if (nextReviewState === 'SPLIT') {
+            return transactionRepository.update(id, {
+                ...data,
+                isPersonal: false,
+                reviewState: 'SPLIT',
+            });
+        }
+
         return transactionRepository.update(id, data);
     },
 
@@ -169,13 +197,14 @@ export const transactionService = {
             sourceId: parsed.refNo,
             hash,
             isPersonal: true,
+            reviewState: 'UNREVIEWED',
             category,
             date: parsed.date ?? new Date(),
             authorId,
         });
     },
 
-    async addSplits(transactionId: string, { splits, method, totalAmount }: AddSplitsRequest) {
+    async addSplits(transactionId: string, { splits, method, totalAmount, groupId }: AddSplitsRequest) {
         const tx = await transactionRepository.findById(transactionId);
         if (!tx) throw { status: 404, message: 'Transaction not found.' };
 
@@ -185,19 +214,14 @@ export const transactionService = {
             round2(totalAmount ?? tx.amount)
         );
 
-        // Replace any existing splits (re-splitting flow)
-        await transactionRepository.deleteSplitsByTransactionId(transactionId);
-
-        return Promise.all(
-            normalizedSplits.map(s =>
-                transactionRepository.createSplit({
-                    transactionId,
-                    userId: s.userId,
-                    amountOwed: s.amountOwed,
-                    splitMethod: method,
-                })
-            )
-        );
+        return transactionRepository.saveSplitConfig(transactionId, {
+            groupId,
+            splits: normalizedSplits.map((split) => ({
+                userId: split.userId,
+                amountOwed: split.amountOwed,
+                splitMethod: method,
+            })),
+        });
     },
 
     async settleSplit(splitId: string) {

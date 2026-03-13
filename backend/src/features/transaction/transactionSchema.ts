@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 // ─── Transaction Request Schemas ──────────────────────────────────────────────
 
+const reviewStateSchema = z.enum(['UNREVIEWED', 'PERSONAL', 'SPLIT']);
+
 export const createTransactionSchema = z.object({
     title: z.string().min(1, 'title is required.'),
     amount: z.number().positive('amount must be a positive number.'),
@@ -12,6 +14,7 @@ export const createTransactionSchema = z.object({
     category: z.string().optional(),
     note: z.string().optional(),
     isPersonal: z.boolean().optional(),
+    reviewState: reviewStateSchema.optional(),
     groupId: z.string().uuid().optional(),
     date: z.string().optional(), // ISO date string
 });
@@ -21,6 +24,7 @@ export const updateTransactionSchema = z.object({
     note: z.string().optional(),
     category: z.string().optional(),
     isPersonal: z.boolean().optional(),
+    reviewState: reviewStateSchema.optional(),
     groupId: z.string().uuid().nullable().optional(),
 });
 
@@ -40,6 +44,7 @@ export const addSplitsSchema = z.object({
     ).min(1, 'splits array must not be empty.'),
     method: z.enum(['EQUAL', 'EXACT', 'PERCENT', 'SHARES']).optional().default('EQUAL'),
     totalAmount: z.number().positive('totalAmount must be positive.').optional(),
+    groupId: z.string().uuid().nullable().optional(),
 });
 
 export const createCategoryRuleSchema = z.object({

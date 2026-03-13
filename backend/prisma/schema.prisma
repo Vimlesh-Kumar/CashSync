@@ -110,6 +110,7 @@ model Transaction {
 
   // Privacy
   isPersonal Boolean @default(true)
+  reviewState String @default("UNREVIEWED") // UNREVIEWED | PERSONAL | SPLIT
 
   // Renaming history
   originalTitle String? // stores the raw bank SMS/email title
@@ -130,6 +131,7 @@ model Transaction {
 
   @@unique([hash])
   @@index([authorId, date])
+  @@index([authorId, reviewState])
   @@map("transactions")
 }
 

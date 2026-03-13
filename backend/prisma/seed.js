@@ -141,6 +141,7 @@ async function seed() {
         categoryId: foodCategory ? foodCategory.id : null,
         source: 'MANUAL',
         isPersonal: false,
+        reviewState: 'SPLIT',
         authorId: demoUser.id,
         groupId: group.id,
         hash: `seed-${demoUser.id}-swiggy`,
