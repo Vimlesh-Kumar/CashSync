@@ -4,7 +4,7 @@ export function parseEmailTransaction(text: string): ParsedTransactionPayload | 
     const amountMatch = /(?:Rs\.?|INR)\s*([\d,]+\.?\d*)/i.exec(text);
     if (!amountMatch) return null;
 
-    const merchantMatch = /(?:at|to|from)\s+([A-Za-z0-9 _*.-]{2,40})/i.exec(text);
+    const merchantMatch = /(?:at|to|from)\s+([A-Za-z0-9 _*.\-]{2,40})/i.exec(text);
     const txnMatch = /(?:ref|txn|utr)[:\s#-]*([A-Z0-9-]{5,})/i.exec(text);
     const type = /credit|received|salary/i.test(text) ? 'INCOME' : 'EXPENSE';
 
@@ -21,4 +21,3 @@ export function parseEmailTransaction(text: string): ParsedTransactionPayload | 
         raw: text,
     };
 }
-
