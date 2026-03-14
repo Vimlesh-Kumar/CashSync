@@ -11,7 +11,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "lint": "eslint \"src/**/*.{ts,js}\" --max-warnings=0",
+    "lint:fix": "eslint \"src/**/*.{ts,js}\" --fix"
   },
   "keywords": [],
   "author": "",
@@ -33,6 +35,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "eslint": "^9.37.0",
     "@types/bcrypt": "^6.0.0",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
