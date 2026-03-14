@@ -1,5 +1,7 @@
 import { autoCategory } from '../../services/categorization.service';
+import { convertAmount, DEFAULT_CURRENCY, normalizeCurrency } from '../../lib/currency';
 import { buildSmsHash, parseSms } from '../../services/sms.service';
+import { userRepository } from '../user/userRepository';
 import { transactionRepository } from './transactionRepository';
 import { AddSplitsRequest, CreateTransactionRequest, StatsQuery, UpdateTransactionRequest } from './transactionSchema';
 
@@ -10,14 +12,15 @@ function normalizeMerchant(value: string): string {
 function buildDedupHash(params: {
     sourceId?: string;
     amount: number;
+    currency: string;
     date: Date;
     merchantLike: string;
 }) {
     if (params.sourceId) {
-        return `${params.sourceId}-${params.amount}`;
+        return `${params.sourceId}-${params.amount}-${params.currency}`;
     }
     const bucket2m = Math.floor(params.date.getTime() / (1000 * 60 * 2));
-    return `F-${params.amount}-${bucket2m}-${normalizeMerchant(params.merchantLike)}`;
+    return `F-${params.amount}-${params.currency}-${bucket2m}-${normalizeMerchant(params.merchantLike)}`;
 }
 
 function round2(value: number) {
@@ -104,10 +107,14 @@ export const transactionService = {
     },
 
     async create(params: CreateTransactionRequest) {
+        const author = await userRepository.findById(params.authorId);
+        if (!author) throw { status: 404, message: 'Author not found.' };
         const txDate = params.date ? new Date(params.date) : new Date();
+        const txCurrency = normalizeCurrency(params.currency ?? author.defaultCurrency);
         const hash = buildDedupHash({
             sourceId: params.sourceId,
             amount: params.amount,
+            currency: txCurrency,
             date: txDate,
             merchantLike: params.title,
         });
@@ -129,6 +136,7 @@ export const transactionService = {
         return transactionRepository.create({
             title: params.title,
             amount: params.amount,
+            currency: txCurrency,
             type: params.type,
             source: params.source,
             sourceId: params.sourceId,
@@ -152,18 +160,23 @@ export const transactionService = {
                 title: data.title,
                 note: data.note,
                 category: data.category,
+                ...(data.currency ? { currency: normalizeCurrency(data.currency) } : {}),
             });
         }
 
         if (nextReviewState === 'SPLIT') {
             return transactionRepository.update(id, {
                 ...data,
+                ...(data.currency ? { currency: normalizeCurrency(data.currency) } : {}),
                 isPersonal: false,
                 reviewState: 'SPLIT',
             });
         }
 
-        return transactionRepository.update(id, data);
+        return transactionRepository.update(id, {
+            ...data,
+            ...(data.currency ? { currency: normalizeCurrency(data.currency) } : {}),
+        });
     },
 
     async ingestSms(rawSms: string, authorId: string) {
@@ -192,6 +205,7 @@ export const transactionService = {
             title: parsed.merchant ?? `${parsed.bank ?? 'Bank'} Transaction`,
             originalTitle: rawSms.substring(0, 120),
             amount: parsed.amount,
+            currency: DEFAULT_CURRENCY,
             type: parsed.type,
             source: 'SMS',
             sourceId: parsed.refNo,
@@ -236,12 +250,21 @@ export const transactionService = {
     },
 
     async getDebtSummary(userId: string) {
+        const user = await userRepository.findById(userId);
+        if (!user) throw { status: 404, message: 'User not found.' };
+        const targetCurrency = normalizeCurrency(user.defaultCurrency);
         const splits = await transactionRepository.findUnsettledSplitsByUser(userId);
-        const totalOwed = splits.reduce((sum, s) => sum + (s.amountOwed - s.amountPaid), 0);
-        return { splits, totalOwed };
+        const totalOwed = splits.reduce(
+            (sum, s) => sum + convertAmount(s.amountOwed - s.amountPaid, s.transaction.currency, targetCurrency),
+            0,
+        );
+        return { splits, totalOwed: round2(totalOwed), currency: targetCurrency };
     },
 
     async getFriendBalances(userId: string) {
+        const user = await userRepository.findById(userId);
+        if (!user) throw { status: 404, message: 'User not found.' };
+        const targetCurrency = normalizeCurrency(user.defaultCurrency);
         const rows = await transactionRepository.findFriendBalanceRows(userId);
         const balanceByUser = new Map<string, {
             user: { id: string; name?: string | null; email: string; avatarUrl?: string | null };
@@ -253,7 +276,11 @@ export const transactionService = {
         }>();
 
         for (const row of rows) {
-            const outstanding = round2(row.amountOwed - row.amountPaid);
+            const outstanding = round2(convertAmount(
+                row.amountOwed - row.amountPaid,
+                row.transaction.currency,
+                targetCurrency,
+            ));
             if (outstanding <= 0) continue;
 
             const counterparty =
@@ -302,6 +329,7 @@ export const transactionService = {
                 splitCount: summary.splitCount,
                 groups: Array.from(summary.groups),
                 lastActivityAt: summary.lastActivityAt ?? null,
+                currency: targetCurrency,
             }))
             .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
     },
@@ -319,18 +347,25 @@ export const transactionService = {
     },
 
     async getStats(params: StatsQuery) {
+        const user = await userRepository.findById(params.userId);
+        if (!user) throw { status: 404, message: 'User not found.' };
+        const targetCurrency = normalizeCurrency(params.targetCurrency ?? user.defaultCurrency);
         const transactions = await transactionRepository.findManyForStats(
             params.userId,
             params.from ? new Date(params.from) : undefined,
             params.to ? new Date(params.to) : undefined,
         );
 
-        const income = transactions.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
-        const expense = transactions.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
+        const income = transactions
+            .filter(t => t.type === 'INCOME')
+            .reduce((s, t) => s + convertAmount(t.amount, t.currency, targetCurrency), 0);
+        const expense = transactions
+            .filter(t => t.type === 'EXPENSE')
+            .reduce((s, t) => s + convertAmount(t.amount, t.currency, targetCurrency), 0);
 
         const byCategory: Record<string, number> = {};
         for (const t of transactions.filter(t => t.type === 'EXPENSE')) {
-            byCategory[t.category] = (byCategory[t.category] ?? 0) + t.amount;
+            byCategory[t.category] = (byCategory[t.category] ?? 0) + convertAmount(t.amount, t.currency, targetCurrency);
         }
 
         const topCategories = Object.entries(byCategory)
@@ -338,6 +373,12 @@ export const transactionService = {
             .slice(0, 6)
             .map(([name, total]) => ({ name, total }));
 
-        return { income, expense, net: income - expense, topCategories };
+        return {
+            currency: targetCurrency,
+            income: round2(income),
+            expense: round2(expense),
+            net: round2(income - expense),
+            topCategories: topCategories.map((x) => ({ ...x, total: round2(x.total) })),
+        };
     },
 };

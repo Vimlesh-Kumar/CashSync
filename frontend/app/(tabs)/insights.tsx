@@ -14,6 +14,7 @@ import { useAuth } from '@/src/context/AuthContext';
 import { useAppTheme } from '@/src/context/ThemeContext';
 import { getBudgets } from '@/src/features/budget';
 import { getStats, TransactionStats } from '@/src/features/transaction';
+import { formatCurrency, normalizeCurrency } from '@/src/lib/currency';
 
 export default function InsightsScreen() {
   const { user } = useAuth();
@@ -22,6 +23,7 @@ export default function InsightsScreen() {
   const [stats, setStats] = useState<TransactionStats | null>(null);
   const [budgets, setBudgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const summaryCurrency = normalizeCurrency(stats?.currency || user?.defaultCurrency);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -64,9 +66,9 @@ export default function InsightsScreen() {
         <Text style={styles.heading}>Insights</Text>
 
         <View style={styles.grid}>
-          <MetricCard title="Income" value={`₹${(stats?.income || 0).toLocaleString('en-IN')}`} color={colors.success} styles={styles} />
-          <MetricCard title="Expense" value={`₹${(stats?.expense || 0).toLocaleString('en-IN')}`} color={colors.danger} styles={styles} />
-          <MetricCard title="Net" value={`₹${(stats?.net || 0).toLocaleString('en-IN')}`} color={colors.accent} styles={styles} />
+          <MetricCard title="Income" value={formatCurrency(stats?.income || 0, summaryCurrency)} color={colors.success} styles={styles} />
+          <MetricCard title="Expense" value={formatCurrency(stats?.expense || 0, summaryCurrency)} color={colors.danger} styles={styles} />
+          <MetricCard title="Net" value={formatCurrency(stats?.net || 0, summaryCurrency)} color={colors.accent} styles={styles} />
           <MetricCard title="Budgets" value={String(budgets.length)} color={colors.textMuted} styles={styles} />
         </View>
 
@@ -75,7 +77,7 @@ export default function InsightsScreen() {
           {(stats?.topCategories || []).map((item) => (
             <View key={item.name} style={styles.row}>
               <Text style={styles.rowLabel}>{item.name}</Text>
-              <Text style={styles.rowValue}>₹{item.total.toLocaleString('en-IN')}</Text>
+              <Text style={styles.rowValue}>{formatCurrency(item.total, summaryCurrency)}</Text>
             </View>
           ))}
         </View>

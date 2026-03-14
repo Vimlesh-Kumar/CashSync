@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SUPPORTED_CURRENCIES } from '../../lib/currency';
 
 // ─── Transaction Request Schemas ──────────────────────────────────────────────
 
@@ -7,6 +8,7 @@ const reviewStateSchema = z.enum(['UNREVIEWED', 'PERSONAL', 'SPLIT']);
 export const createTransactionSchema = z.object({
     title: z.string().min(1, 'title is required.'),
     amount: z.number().positive('amount must be a positive number.'),
+    currency: z.enum(SUPPORTED_CURRENCIES).optional(),
     authorId: z.string().uuid('authorId must be a valid UUID.'),
     type: z.enum(['EXPENSE', 'INCOME', 'TRANSFER']).optional(),
     source: z.enum(['MANUAL', 'SMS', 'EMAIL', 'API']).optional(),
@@ -23,6 +25,7 @@ export const updateTransactionSchema = z.object({
     title: z.string().min(1).optional(),
     note: z.string().optional(),
     category: z.string().optional(),
+    currency: z.enum(SUPPORTED_CURRENCIES).optional(),
     isPersonal: z.boolean().optional(),
     reviewState: reviewStateSchema.optional(),
     groupId: z.string().uuid().nullable().optional(),
@@ -56,6 +59,7 @@ export const createCategoryRuleSchema = z.object({
 
 export const statsQuerySchema = z.object({
     userId: z.string().uuid('userId must be a valid UUID.'),
+    targetCurrency: z.enum(SUPPORTED_CURRENCIES).optional(),
     from: z.string().optional(),
     to: z.string().optional(),
 });
@@ -72,6 +76,7 @@ export type StatsQuery = z.infer<typeof statsQuerySchema>;
 // ─── Response types ───────────────────────────────────────────────────────────
 
 export interface TransactionStats {
+    currency: string;
     income: number;
     expense: number;
     net: number;

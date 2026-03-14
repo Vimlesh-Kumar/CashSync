@@ -15,6 +15,7 @@ model User {
   email      String  @unique
   name       String?
   avatarUrl  String?
+  defaultCurrency String @default("INR")
   password   String? // Optional — only for JWT/email auth
   provider   String  @default("JWT") // GOOGLE | APPLE | JWT
   providerId String? // OAuth subject ID (optional for JWT)

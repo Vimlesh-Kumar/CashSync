@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SUPPORTED_CURRENCIES } from '../../lib/currency';
 
 // ─── Request Schemas ──────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ export const getUserParamsSchema = z.object({
 export const updateUserSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters.').optional(),
     avatarUrl: z.string().url('Avatar URL must be a valid URL.').optional(),
+    defaultCurrency: z.enum(SUPPORTED_CURRENCIES).optional(),
 });
 
 // ─── Inferred Request Types ───────────────────────────────────────────────────
@@ -47,6 +49,7 @@ export interface UserResponse {
     email: string;
     name: string | null;
     avatarUrl: string | null;
+    defaultCurrency: string;
     provider: string;
     providerId: string | null;
     createdAt: Date;

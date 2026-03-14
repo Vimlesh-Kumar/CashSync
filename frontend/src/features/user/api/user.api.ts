@@ -42,7 +42,7 @@ export const getAllUsers = async () => {
     return response.json();
 };
 
-export const updateUser = async (id: string, data: { name?: string; avatarUrl?: string }) => {
+export const updateUser = async (id: string, data: { name?: string; avatarUrl?: string; defaultCurrency?: string }) => {
     const response = await fetch(`${API_URL}/users/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
