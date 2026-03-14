@@ -36,7 +36,7 @@ export interface TransactionStats {
     income: number;
     expense: number;
     net: number;
-    topCategories: Array<{ name: string; total: number }>;
+    topCategories: { name: string; total: number }[];
 }
 
 export interface FriendBalanceSummary {
@@ -127,7 +127,7 @@ export const ingestSms = async (rawSms: string, authorId: string): Promise<Trans
 
 export const addSplits = async (
     transactionId: string,
-    splits: Array<{ userId: string; amountOwed?: number; percentage?: number; shares?: number }>,
+    splits: { userId: string; amountOwed?: number; percentage?: number; shares?: number }[],
     method: 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES' = 'EQUAL',
     totalAmount?: number,
     groupId?: string | null

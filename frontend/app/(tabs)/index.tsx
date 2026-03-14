@@ -1,14 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -55,7 +54,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async (silent = false) => {
+  const load = useCallback(async (silent = false) => {
     if (!user) return;
     try {
       if (!silent) setLoading(true);
@@ -106,11 +105,11 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [fadeAnim, user]);
 
   useEffect(() => {
     void load();
-  }, [user]);
+  }, [load]);
 
   if (loading) {
     return (

@@ -40,15 +40,15 @@ export interface GroupLedger {
     group: { id: string; name: string; description?: string; emoji?: string };
     currency: string;
     members: GroupMember[];
-    balances: Array<{ userId: string; net: number; currency: string; breakdown: Array<{ currency: string; amount: number }> }>;
-    suggestedSettlements: Array<{ fromUserId: string; toUserId: string; amount: number; currency: string }>;
-    unsettledSplits: Array<{
+    balances: { userId: string; net: number; currency: string; breakdown: { currency: string; amount: number }[] }[];
+    suggestedSettlements: { fromUserId: string; toUserId: string; amount: number; currency: string }[];
+    unsettledSplits: {
         id: string;
         amountOwed: number;
         amountPaid: number;
         user: { id: string; name?: string; email: string };
         transaction: { id: string; title: string; authorId: string; date: string; currency: string };
-    }>;
+    }[];
 }
 
 export const getGroups = (userId: string): Promise<GroupSummary[]> =>

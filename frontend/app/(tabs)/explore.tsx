@@ -134,10 +134,10 @@ function SmsModal({
   const [autoStatus, setAutoStatus] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
-  const looksLikeTransactionSms = (value: string) =>
-    /(upi|debited|credited|sent|received|a\/c|ac\s*x?\d|bank|ref)/i.test(value);
+  const looksLikeTransactionSms = useCallback((value: string) =>
+    /(upi|debited|credited|sent|received|a\/c|ac\s*x?\d|bank|ref)/i.test(value), []);
 
-  const parseAndIngest = async (
+  const parseAndIngest = useCallback(async (
     rawSms: string,
     mode: "AUTO" | "MANUAL",
   ): Promise<boolean> => {
@@ -162,9 +162,9 @@ function SmsModal({
       }
     }
     return false;
-  };
+  }, [authorId, onSuccess]);
 
-  const handleAutoDetect = async () => {
+  const handleAutoDetect = useCallback(async () => {
     setLoadingAuto(true);
     setResult(null);
     setAutoStatus("Checking clipboard for a bank SMS...");
@@ -186,14 +186,14 @@ function SmsModal({
       }
 
       await parseAndIngest(clipboardText, "AUTO");
-    } catch (_) {
+    } catch {
       setAutoStatus(
         "Could not read clipboard on this device. Use manual fallback below.",
       );
     } finally {
       setLoadingAuto(false);
     }
-  };
+  }, [looksLikeTransactionSms, parseAndIngest]);
 
   const handleManualSubmit = async () => {
     const rawSms = text.trim();
@@ -210,7 +210,7 @@ function SmsModal({
     setAutoStatus(null);
     setManualOpen(false);
     void handleAutoDetect();
-  }, [visible]);
+  }, [visible, handleAutoDetect]);
 
   return (
     <Modal
@@ -407,7 +407,7 @@ function RenameModal({
       });
       onSaved();
       onClose();
-    } catch (_) {
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -598,14 +598,14 @@ function SplitModal({
 }) {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [allUsers, setAllUsers] = useState<
-    Array<{ id: string; name?: string; email: string }>
+    { id: string; name?: string; email: string }[]
   >([]);
   const [friendBalances, setFriendBalances] = useState<
-    Array<{
+    {
       userId: string;
       user: { id: string; name?: string; email: string };
       net: number;
-    }>
+    }[]
   >([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
     tx.groupId ?? null,
@@ -650,7 +650,7 @@ function SplitModal({
     return () => {
       mounted = false;
     };
-  }, [authorId]);
+  }, [authorId, selectedGroupId]);
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) || null;
   const groupMembers =
@@ -664,7 +664,7 @@ function SplitModal({
   const friendIds = new Set(friendOptions.map((person) => person.id));
   const userOptions = allUsers.filter((person) => !friendIds.has(person.id));
   const peopleOptions = [
-      ...friendOptions.map((person) => ({
+    ...friendOptions.map((person) => ({
       ...person,
       source: "Friend" as const,
       hint: formatBalanceHint(person.net, tx.currency),
@@ -714,7 +714,7 @@ function SplitModal({
       );
       onSaved();
       onClose();
-    } catch (_) {
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -1098,7 +1098,7 @@ export default function ExploreScreen() {
       }
       const res = await getTransactions(user.id, opts);
       setTransactions(res.transactions);
-    } catch (_) {
+    } catch {
     } finally {
       setLoading(false);
     }
