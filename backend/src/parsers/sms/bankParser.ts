@@ -8,9 +8,11 @@ export interface ParsedTransactionPayload {
     raw: string;
 }
 
-const BANK_PATTERNS: RegExp[] = [
-    /(?:Rs\.?|INR)\s*(?<amount>[\d,]+\.?\d*)\s+(?<direction>debited|credited)(?:.*?(?:at|to|from)\s+(?<merchant>[^.]{2,40}))?(?:.*?ref(?:\.|\s|:)*(?<ref>[A-Z0-9-]+))?/i,
-    /a\/c\s*\w+\s*(?<direction>debit|credit)ed\s*(?:for)?\s*(?:Rs\.?|INR)?\s*(?<amount>[\d,]+\.?\d*)(?:.*?(?<merchant>[A-Z][^.,]{2,35}))?/i,
+const AMOUNT_PATTERN = /\b(?:INR|Rs\.?|Rs:)\s*([0-9][0-9,]*(?:\.[0-9]+)?)\b/i;
+const DIRECTION_PATTERN = /\b(debited|credited|debit|credit|received|refund|sent|paid)\b/i;
+const REFERENCE_PATTERNS: ReadonlyArray<RegExp> = [
+    /\bUPI\s*Ref(?:\s*No\.?)?\b[^\w-]{0,6}([A-Za-z0-9-]{5,})\b/i,
+    /\b(?:ref|reference|txn|utr)\b[^\w-]{0,6}([A-Za-z0-9-]{5,})\b/i,
 ];
 
 function normalizeAmount(raw: string): number {
@@ -18,23 +20,40 @@ function normalizeAmount(raw: string): number {
 }
 
 export function parseBankSms(rawSms: string): ParsedTransactionPayload | null {
-    for (const pattern of BANK_PATTERNS) {
-        const match = pattern.exec(rawSms);
-        if (!match?.groups?.amount) continue;
+    const safeRaw = rawSms.slice(0, 500).replaceAll(/\s+/g, ' ').trim();
+    if (!safeRaw) return null;
 
-        const direction = (match.groups.direction || '').toLowerCase();
-        const type = /credit|received|refund/.test(direction) ? 'INCOME' : 'EXPENSE';
+    const amountMatch = AMOUNT_PATTERN.exec(safeRaw);
+    if (!amountMatch?.[1]) return null;
 
-        return {
-            amount: normalizeAmount(match.groups.amount),
-            type,
-            merchant: match.groups.merchant?.trim(),
-            transactionId: match.groups.ref?.trim(),
-            timestamp: new Date(),
-            source: 'SMS',
-            raw: rawSms,
-        };
+    const direction = (DIRECTION_PATTERN.exec(safeRaw)?.[1] || '').toLowerCase();
+    const type = /credit|received|refund/.test(direction) ? 'INCOME' : 'EXPENSE';
+
+    const markerMatch = /\b(at|to|from|by|towards)\b/i.exec(safeRaw);
+    let merchant: string | undefined;
+    if (markerMatch) {
+        const markerEnd = markerMatch.index + markerMatch[0].length;
+        const tail = safeRaw.slice(markerEnd, markerEnd + 80).trimStart();
+        const stopMatch = /\b(on|bal|avl|ref|txn|utr|info)\b|[.;\n\r]/i.exec(tail);
+        merchant = (stopMatch ? tail.slice(0, stopMatch.index) : tail).trim() || undefined;
     }
 
-    return null;
+    let transactionId: string | undefined;
+    for (const pattern of REFERENCE_PATTERNS) {
+        const found = pattern.exec(safeRaw)?.[1]?.trim();
+        if (found) {
+            transactionId = found;
+            break;
+        }
+    }
+
+    return {
+        amount: normalizeAmount(amountMatch[1]),
+        type,
+        merchant,
+        transactionId,
+        timestamp: new Date(),
+        source: 'SMS',
+        raw: rawSms,
+    };
 }

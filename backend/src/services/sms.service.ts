@@ -17,75 +17,59 @@ export interface ParsedSms {
 
 type SmsRule = {
     bank: string;
-    // Matches the SMS, captures named groups: amount, type (debit/credit), merchant, refno, balance
     pattern: RegExp;
 };
 
-const SMS_RULES: SmsRule[] = [
-    // Union Bank of India
-    {
-        bank: "Union Bank",
-        pattern:
-            /A\/c\s*\*[\d]+\s+(?<type>Debited|Credited)\s+for\s+Rs:(?<amount>[\d,]+\.?\d*)\s+on\s+(?<date>\d{2}-\d{2}-\d{4})\s+\d{2}:\d{2}:\d{2}\s+by\s+(?<merchant>.*?)\s+ref\s+no\s+(?<refno>\w+)/i,
-    },
-    // HDFC Bank
-    {
-        bank: "HDFC",
-        pattern:
-            /(?<type>debited|credited)\s+by\s+Rs\.?(?<amount>[\d,]+\.?\d*)\s+(?:from|to)?\s*(?:A\/C\s*[Xx\d]+)?\s*(?:on\s*[\d\-/]+)?\s*(?:(?:trf|NEFT|INFO|Ref)\s*(?:No\.?\s*)?(?<refno>\w+))?\s*(?:-\s*(?<merchant>.+?))?(?=\.|\s*$|\sBal)/i,
-    },
-    // ICICI Bank
-    {
-        bank: "ICICI",
-        pattern:
-            /ICICI\s+Bank:\s+(?:Rs\.?\s*|INR\s*)(?<amount>[\d,]+\.?\d*)\s+(?<type>debited|credited)\s*(?:from|to)?\s*(?:a\/c\s*[Xx\d]+)?\s*(?:on\s*[\d\-/]+)?\s*(?:(?:trf|Ref|Info)\s+(?<refno>\w+))?\s*(?:[;.]\s*(?<merchant>.+?)(?=\s*(?:Avl|Bal|$)))?/i,
-    },
-    // SBI
-    {
-        bank: "SBI",
-        pattern:
-            /(?<type>debit|credit)ed\s+Rs\.?\s*(?<amount>[\d,]+\.?\d*)\s+in\s+a\/c\s*[Xx\d]+\s*(?:on\s*[\d\-/.]+)?\s*(?:by\s*(?<merchant>.+?))?(?=\.|Bal|$)/i,
-    },
-    // Axis Bank
-    {
-        bank: "Axis",
-        pattern:
-            /(?:Rs\.?\s*|INR\s*)(?<amount>[\d,]+\.?\d*)\s+(?<type>debited|credited)\s+from\s+Axis\s+Bank\s+A\/c\s*[Xx\d]+\s*(?:on\s*[\d\-/]+)?\s*(?:towards\s*(?<merchant>.+?))?(?=\.|Bal|$)/i,
-    },
-    // Axis Bank (Multiline format)
-    {
-        bank: "Axis",
-        pattern:
-            /(?<type>Debit|Credit)\s+(?:INR|Rs\.?)\s*(?<amount>[\d,]+\.?\d*)\s+Axis\s+Bank\s+A\/c\s*[Xx\d]+\s+(?<date>\d{2}-\d{2}-\d{2,4})\s+(?:\d{2}:\d{2}:\d{2})\s+(?<merchant>[^\n\r]+)/i,
-    },
-    // Kotak
-    {
-        bank: "Kotak",
-        pattern:
-            /Sent\s+(?:INR|Rs\.?)\s*(?<amount>[\d,]+\.?\d*)\s+from\s+Kotak\s+Bank\s+(?:A\/?C|AC)\s*[XxA-Za-z0-9*]+\s+to\s+(?<merchant>[A-Za-z0-9._@-]{3,80})\s+on\s+(?<date>\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}).*?UPI\s*Ref(?:\s*No\.?)?\s*(?<refno>[A-Za-z0-9-]{6,})/i,
-    },
-    // Kotak (legacy/card style)
-    {
-        bank: "Kotak",
-        pattern:
-            /Kotak\s*:\s*(?:INR|Rs\.?)\s*(?<amount>[\d,]+\.?\d*)\s+(?<type>debited|credited)(?:.*?at\s+(?<merchant>[^.]+))?/i,
-    },
-    // Generic UPI / wallet phrases
-    {
-        bank: "UPI",
-        pattern:
-            /(?<type>sent|paid|received|debited|credited)\s+(?:INR|Rs\.?)\s*(?<amount>[\d,]+\.?\d*)(?:.*?(?:to|from)\s+(?<merchant>[A-Za-z0-9._@*-]{3,80}))?(?:.*?on\s+(?<date>\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}))?(?:.*?UPI\s*Ref(?:\s*No\.?)?\s*(?<refno>[A-Za-z0-9-]{6,}))?/i,
-    },
-    // Generic fallback — works for many banks
-    {
-        bank: "Generic",
-        pattern:
-            /(?:INR|Rs\.?)\s*(?<amount>[\d,]+\.?\d*)\s+(?:has been\s+)?(?<type>debited|credited|deducted|received)(?:.*?(?:at|from|to|by)\s+(?<merchant>[A-Z][^.]{2,30}))?/i,
-    },
+const MAX_SMS_LENGTH = 500;
+const AMOUNT_PATTERN = /\b(?:INR|Rs\.?|Rs:)\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i;
+const TYPE_PATTERN = /\b(debited|credited|debit|credit|sent|paid|received|deducted)\b/i;
+const DATE_PATTERN = /\b(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\b/;
+const REF_PATTERNS: ReadonlyArray<RegExp> = [
+    /\bUPI\s*Ref(?:\s*No\.?)?\b[^\w-]{0,6}([A-Za-z0-9-]{5,})\b/i,
+    /\b(?:ref|reference|txn|utr|trf|info)\b[^\w-]{0,6}([A-Za-z0-9-]{5,})\b/i,
+];
+const BANK_PATTERNS: ReadonlyArray<SmsRule> = [
+    { bank: "Union Bank", pattern: /\bUnion\s+Bank\b|\bA\/c\s*\*/i },
+    { bank: "HDFC", pattern: /\bHDFC\b/i },
+    { bank: "ICICI", pattern: /\bICICI\b/i },
+    { bank: "SBI", pattern: /\bSBI\b|\bState\s+Bank\b/i },
+    { bank: "Axis", pattern: /\bAxis\b/i },
+    { bank: "Kotak", pattern: /\bKotak\b/i },
+    { bank: "UPI", pattern: /\bUPI\b/i },
 ];
 
 function parseAmount(raw: string): number {
     return Number.parseFloat(raw.replaceAll(",", ""));
+}
+
+function detectBank(rawSms: string): string {
+    for (const rule of BANK_PATTERNS) {
+        if (rule.pattern.test(rawSms)) return rule.bank;
+    }
+    return "Generic";
+}
+
+function extractReference(rawSms: string): string | undefined {
+    for (const pattern of REF_PATTERNS) {
+        const value = pattern.exec(rawSms)?.[1]?.trim();
+        if (value) return value;
+    }
+    return undefined;
+}
+
+function extractMerchant(rawSms: string): string | undefined {
+    const markerMatch = /\b(at|to|from|by|towards)\b/i.exec(rawSms);
+    if (!markerMatch) return undefined;
+
+    const markerEnd = markerMatch.index + markerMatch[0].length;
+    const tail = rawSms.slice(markerEnd, markerEnd + 80).trimStart();
+    if (!tail) return undefined;
+
+    const stopMatch = /\b(on|bal|avl|ref|txn|utr|trf|info)\b|[.;\n\r]/i.exec(tail);
+    const candidate = (stopMatch ? tail.slice(0, stopMatch.index) : tail).trim();
+    if (!candidate) return undefined;
+
+    return normalizeMerchant(candidate.slice(0, 40));
 }
 
 function normalizeMerchant(raw?: string): string | undefined {
@@ -128,23 +112,23 @@ function inferType(raw: string): "EXPENSE" | "INCOME" {
 }
 
 export function parseSms(rawSms: string): ParsedSms | null {
-    for (const rule of SMS_RULES) {
-        const match = rawSms.match(rule.pattern);
-        if (!match?.groups) continue;
+    const safeRaw = rawSms.slice(0, MAX_SMS_LENGTH).replaceAll(/\s+/g, " ").trim();
+    if (!safeRaw) return null;
 
-        const { amount, type, merchant, refno } = match.groups;
-        if (!amount) continue;
+    const amount = AMOUNT_PATTERN.exec(safeRaw)?.[1];
+    if (!amount) return null;
 
-        return {
-            amount: parseAmount(amount),
-            type: inferType(type || rawSms),
-            merchant: normalizeMerchant(merchant),
-            refNo: refno?.trim(),
-            date: parseSmsDate(match.groups.date) ?? new Date(),
-            bank: rule.bank,
-        };
-    }
-    return null;
+    const typeToken = TYPE_PATTERN.exec(safeRaw)?.[1];
+    const dateToken = DATE_PATTERN.exec(safeRaw)?.[1];
+
+    return {
+        amount: parseAmount(amount),
+        type: inferType(typeToken || safeRaw),
+        merchant: extractMerchant(safeRaw),
+        refNo: extractReference(safeRaw),
+        date: parseSmsDate(dateToken) ?? new Date(),
+        bank: detectBank(safeRaw),
+    };
 }
 
 function formatDayKey(date: Date): string {

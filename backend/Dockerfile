@@ -7,8 +7,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Copy all source
-COPY . .
+# Copy only required source files
+COPY prisma ./prisma
+COPY src ./src
+COPY tsconfig.json ./
 
 # Generate Prisma Client
 RUN npx prisma generate
@@ -31,6 +33,9 @@ COPY --from=builder /app/dist ./dist
 
 # Generate client again but only for production
 RUN npx prisma generate
+
+# Drop root privileges at runtime
+USER node
 
 EXPOSE 3000
 
