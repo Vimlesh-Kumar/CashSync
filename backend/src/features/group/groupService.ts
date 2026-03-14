@@ -10,8 +10,16 @@ type LedgerEdge = {
     currency?: CurrencyCode;
 };
 
+type HttpError = Error & { status: number };
+
 function round2(value: number) {
     return Math.round(value * 100) / 100;
+}
+
+function createHttpError(status: number, message: string): HttpError {
+    const error = new Error(message) as HttpError;
+    error.status = status;
+    return error;
 }
 
 function simplifyDebts(balanceByUser: Record<string, number>) {
@@ -30,20 +38,24 @@ function simplifyDebts(balanceByUser: Record<string, number>) {
     let i = 0;
     let j = 0;
     while (i < debtors.length && j < creditors.length) {
-        const amount = round2(Math.min(debtors[i]!.amount, creditors[j]!.amount));
+        const debtor = debtors[i];
+        const creditor = creditors[j];
+        if (!debtor || !creditor) break;
+
+        const amount = round2(Math.min(debtor.amount, creditor.amount));
         if (amount > 0) {
             routes.push({
-                fromUserId: debtors[i]!.userId,
-                toUserId: creditors[j]!.userId,
+                fromUserId: debtor.userId,
+                toUserId: creditor.userId,
                 amount,
             });
         }
 
-        debtors[i]!.amount = round2(debtors[i]!.amount - amount);
-        creditors[j]!.amount = round2(creditors[j]!.amount - amount);
+        debtor.amount = round2(debtor.amount - amount);
+        creditor.amount = round2(creditor.amount - amount);
 
-        if (debtors[i]!.amount <= 0.009) i += 1;
-        if (creditors[j]!.amount <= 0.009) j += 1;
+        if (debtor.amount <= 0.009) i += 1;
+        if (creditor.amount <= 0.009) j += 1;
     }
 
     return routes;
@@ -76,7 +88,7 @@ function simplifyDebtsByCurrency(balanceByUser: Record<string, Record<string, nu
 export const groupService = {
     async listForUser(userId: string) {
         const user = await userRepository.findById(userId);
-        if (!user) throw { status: 404, message: 'User not found.' };
+        if (!user) throw createHttpError(404, 'User not found.');
         const targetCurrency = normalizeCurrency(user.defaultCurrency);
         const groups = await groupRepository.listByUser(userId);
 
@@ -116,30 +128,30 @@ export const groupService = {
 
     async addMember(groupId: string, data: AddGroupMemberRequest) {
         const group = await groupRepository.findById(groupId);
-        if (!group) throw { status: 404, message: 'Group not found.' };
+        if (!group) throw createHttpError(404, 'Group not found.');
 
         let resolvedUserId = data.userId;
         if (!resolvedUserId && data.email) {
             const user = await userRepository.findByEmail(data.email);
             if (!user) {
-                throw { status: 404, message: 'No user found with this email.' };
+                throw createHttpError(404, 'No user found with this email.');
             }
             resolvedUserId = user.id;
         }
 
         if (!resolvedUserId) {
-            throw { status: 400, message: 'Unable to resolve user for membership.' };
+            throw createHttpError(400, 'Unable to resolve user for membership.');
         }
 
         const exists = group.members.some((m) => m.userId === resolvedUserId);
-        if (exists) throw { status: 409, message: 'User is already a group member.' };
+        if (exists) throw createHttpError(409, 'User is already a group member.');
 
         return groupRepository.addMember(groupId, resolvedUserId, data.role);
     },
 
     async getLedger(groupId: string, userId?: string) {
         const group = await groupRepository.findById(groupId);
-        if (!group) throw { status: 404, message: 'Group not found.' };
+        if (!group) throw createHttpError(404, 'Group not found.');
 
         const user = userId ? await userRepository.findById(userId) : null;
         const targetCurrency = normalizeCurrency(user?.defaultCurrency ?? DEFAULT_CURRENCY);
@@ -164,8 +176,14 @@ export const groupService = {
             balanceByUser[debtorId] = round2((balanceByUser[debtorId] ?? 0) - convertedOutstanding);
             balanceByUser[creditorId] = round2((balanceByUser[creditorId] ?? 0) + convertedOutstanding);
 
-            balanceByUserByCurrency[debtorId]![splitCurrency] = round2((balanceByUserByCurrency[debtorId]![splitCurrency] ?? 0) - outstanding);
-            balanceByUserByCurrency[creditorId]![splitCurrency] = round2((balanceByUserByCurrency[creditorId]![splitCurrency] ?? 0) + outstanding);
+            const debtorCurrencyBalances = balanceByUserByCurrency[debtorId] ?? {};
+            const creditorCurrencyBalances = balanceByUserByCurrency[creditorId] ?? {};
+
+            debtorCurrencyBalances[splitCurrency] = round2((debtorCurrencyBalances[splitCurrency] ?? 0) - outstanding);
+            creditorCurrencyBalances[splitCurrency] = round2((creditorCurrencyBalances[splitCurrency] ?? 0) + outstanding);
+
+            balanceByUserByCurrency[debtorId] = debtorCurrencyBalances;
+            balanceByUserByCurrency[creditorId] = creditorCurrencyBalances;
         }
 
         const routes = simplifyDebtsByCurrency(balanceByUserByCurrency);
@@ -199,16 +217,13 @@ export const groupService = {
 
         const unsettled = await groupRepository.findUnsettledSplitsBetween(groupId, fromUserId, toUserId, payload.currency);
         if (!unsettled.length) {
-            throw { status: 400, message: 'No unsettled debt from payer to receiver in this group.' };
+            throw createHttpError(400, 'No unsettled debt from payer to receiver in this group.');
         }
 
         if (!payload.currency) {
             const distinctCurrencies = new Set(unsettled.map((split) => split.transaction.currency));
             if (distinctCurrencies.size > 1) {
-                throw {
-                    status: 400,
-                    message: 'Multiple currencies found. Please specify settlement currency.',
-                };
+                throw createHttpError(400, 'Multiple currencies found. Please specify settlement currency.');
             }
         }
 

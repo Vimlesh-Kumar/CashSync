@@ -1,15 +1,20 @@
 /* eslint-disable no-console */
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
+const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required to run seed.');
+}
+
 const pool = new Pool({
-  connectionString:
-    process.env.DATABASE_URL ||
-    'postgresql://postgres:postgrespassword@localhost:5433/cashsync?schema=public',
+  connectionString: databaseUrl,
 });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+const SALT_ROUNDS = 10;
 
 const DEFAULT_CATEGORIES = [
   { name: 'Food', icon: '🍔', color: '#F97316' },
@@ -28,6 +33,11 @@ function monthStart(now = new Date()) {
 }
 
 async function seed() {
+  const demoPassword = process.env.DEMO_SEED_PASSWORD;
+  if (!demoPassword) {
+    throw new Error('DEMO_SEED_PASSWORD is required to seed demo credentials.');
+  }
+  const demoPasswordHash = await bcrypt.hash(demoPassword, SALT_ROUNDS);
   const demoUser = await prisma.user.upsert({
     where: { email: 'demo@cashsync.app' },
     update: { name: 'CashSync Demo', provider: 'JWT' },
@@ -35,7 +45,7 @@ async function seed() {
       email: 'demo@cashsync.app',
       name: 'CashSync Demo',
       provider: 'JWT',
-      password: '$2b$10$Y9zQ3SS4Q9x36Xkf0N.VEu7YwTocPbLGV4rf39kg8Z65dBnwM0KGO', // demo123
+      password: demoPasswordHash,
     },
   });
 
@@ -149,15 +159,17 @@ async function seed() {
     });
   }
 
-  console.log('✅ Seed complete. Demo user: demo@cashsync.app / demo123');
+  console.log('✅ Seed complete. Demo user: demo@cashsync.app');
 }
 
-seed()
-  .catch((err) => {
+(async () => {
+  try {
+    await seed();
+  } catch (err) {
     console.error('❌ Seed failed', err);
     process.exitCode = 1;
-  })
-  .finally(async () => {
+  } finally {
     await prisma.$disconnect();
     await pool.end();
-  });
+  }
+})();

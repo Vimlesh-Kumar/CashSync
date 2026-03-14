@@ -32,15 +32,17 @@ export class Logger implements AppLogger {
   }
 
   private log(level: LogLevel, message: string, meta?: Record<string, unknown>): void {
+    const combinedMeta = {
+      ...this.baseMeta,
+      ...meta,
+    };
+
     this.writter.write({
       timestamp: new Date().toISOString(),
       level,
       scope: this.scope,
       message,
-      meta: {
-        ...this.baseMeta,
-        ...(meta ?? {}),
-      },
+      meta: combinedMeta,
     });
   }
 }

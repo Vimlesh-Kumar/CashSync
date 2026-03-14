@@ -5,7 +5,7 @@ import { ParsedTransactionPayload } from '../sms/bankParser';
  * Keep this parser contract stable so ingestion workers can deduplicate uniformly.
  */
 export function parseBankApiPayload(_payload: unknown): ParsedTransactionPayload | null {
-    // TODO: map provider-specific payload into ParsedTransactionPayload.
+    // Planned mapping for provider-specific payload into ParsedTransactionPayload.
     // Example future shape:
     // const payload = _payload as { amount: number; merchant_name: string; datetime: string; transaction_id: string };
     // return {

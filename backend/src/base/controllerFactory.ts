@@ -1,4 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import fs from 'node:fs';
 import { appLogger } from './log';
 import { ApiContext } from './apiContext';
 import { ApplicationError } from './applicationError';
@@ -35,7 +36,7 @@ export class ControllerFactory<TController extends Record<string, unknown>> {
     }
 
     if (expression in context) {
-      return (context as unknown as Record<string, unknown>)[expression];
+      return Reflect.get(context as object, expression);
     }
 
     return undefined;
@@ -93,7 +94,6 @@ export class ControllerFactory<TController extends Record<string, unknown>> {
       return;
     }
 
-    const fs = require('fs') as typeof import('fs');
     for (const file of files) {
       if (file.path) {
         fs.unlink(file.path, () => undefined);

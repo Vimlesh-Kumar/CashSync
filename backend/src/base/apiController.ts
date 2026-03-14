@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import { RequestHandler } from 'express';
 import { ApiContext } from './apiContext';
 import { appLogger, AppLogger } from './log';
@@ -19,7 +19,7 @@ export class ApiController {
 
   constructor(context: ApiContext) {
     if (!(context instanceof ApiContext)) {
-      throw new Error('The context argument needs to be an instance of ApiContext');
+      throw new TypeError('The context argument needs to be an instance of ApiContext');
     }
 
     this.context = context;

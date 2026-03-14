@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
 import { appLogger, type AppLogger } from './log';
 
@@ -106,7 +106,7 @@ export class ApiContext {
       const [type, name] = args;
       this.response.setHeader(
         key,
-        getContentDispositionValue(String(type ?? 'attachment'), String(name ?? '')),
+        getContentDispositionValue(type, name),
       );
       return;
     }
@@ -115,8 +115,14 @@ export class ApiContext {
   }
 }
 
-function getContentDispositionValue(type = 'attachment', name = ''): string {
-  return `${type || 'attachment'};`
-    + ` filename=\"${encodeURIComponent(name)}\";`
-    + ` filename*=UTF-8''${encodeURIComponent(name)}`;
+function ensureHeaderToken(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value : fallback;
+}
+
+function getContentDispositionValue(type: unknown, name: unknown): string {
+  const safeType = ensureHeaderToken(type, 'attachment');
+  const safeName = ensureHeaderToken(name, '');
+  return `${safeType};`
+    + ` filename="${encodeURIComponent(safeName)}";`
+    + ` filename*=UTF-8''${encodeURIComponent(safeName)}`;
 }

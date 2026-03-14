@@ -8,7 +8,7 @@ export class BaseRepository {
 
   constructor(context: ApiContext) {
     if (!(context instanceof ApiContext)) {
-      throw new Error('The context argument needs to be an instance of ApiContext');
+      throw new TypeError('The context argument needs to be an instance of ApiContext');
     }
 
     this.context = context;

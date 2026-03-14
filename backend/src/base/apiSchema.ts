@@ -5,6 +5,14 @@ import { ApiEndpoint, type ApiEndpointInit, type EndpointVerb } from './apiEndpo
 const trim = (value: string, expr = '/') =>
   String(value).replace(new RegExp(`^${expr}*(.*?)${expr}*$`), '$1');
 
+function collapseSlashes(value: string): string {
+  let normalized = value;
+  while (normalized.includes('//')) {
+    normalized = normalized.replaceAll('//', '/');
+  }
+  return normalized;
+}
+
 type MiddlewareFactoryFn = (id: string, args: unknown[]) => RequestHandler;
 
 export interface ApiSchemaInit {
@@ -47,7 +55,7 @@ export class ApiSchema {
   private registerEndpoint(app: Application, endpoint: ApiEndpoint): void {
     const verb = endpoint.verb.toLowerCase() as EndpointVerb;
     const path = trim(endpoint.path);
-    const url = this.url ? `/${this.url}/${path}`.replace(/\/+/g, '/') : `/${path}`;
+    const url = this.url ? collapseSlashes(`/${this.url}/${path}`) : `/${path}`;
 
     const middlewares: RequestHandler[] = [];
     if (this.middlewareFactory) {

@@ -14,12 +14,12 @@ const BANK_PATTERNS: RegExp[] = [
 ];
 
 function normalizeAmount(raw: string): number {
-    return Number.parseFloat(raw.replace(/,/g, ''));
+    return Number.parseFloat(raw.replaceAll(',', ''));
 }
 
 export function parseBankSms(rawSms: string): ParsedTransactionPayload | null {
     for (const pattern of BANK_PATTERNS) {
-        const match = rawSms.match(pattern);
+        const match = pattern.exec(rawSms);
         if (!match?.groups?.amount) continue;
 
         const direction = (match.groups.direction || '').toLowerCase();

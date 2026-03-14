@@ -39,6 +39,6 @@ export class ApiEndpoint {
   }
 
   isRestAPI(): boolean {
-    return Object.prototype.hasOwnProperty.call(this.middleware, 'createExternalClientConn');
+    return Object.hasOwn(this.middleware, 'createExternalClientConn');
   }
 }
