@@ -8,7 +8,7 @@ interface ProfileCardProps {
   imageUrl?: string;
 }
 
-export const ProfileCard: React.FC<ProfileCardProps> = ({
+export const ProfileCard: React.FC<Readonly<ProfileCardProps>> = ({
   name,
   email,
   balance,

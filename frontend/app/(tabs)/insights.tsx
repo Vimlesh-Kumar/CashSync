@@ -102,17 +102,19 @@ export default function InsightsScreen() {
   );
 }
 
+type MetricCardProps = Readonly<{
+  title: string;
+  value: string;
+  color: string;
+  styles: ReturnType<typeof createStyles>;
+}>;
+
 function MetricCard({
   title,
   value,
   color,
   styles,
-}: {
-  title: string;
-  value: string;
-  color: string;
-  styles: ReturnType<typeof createStyles>;
-}) {
+}: MetricCardProps) {
   return (
     <View style={styles.metricCard}>
       <Text style={styles.metricTitle}>{title}</Text>

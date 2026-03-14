@@ -32,17 +32,19 @@ function personName(user?: { id: string; name?: string; email: string }) {
   return user.name || user.email.split("@")[0] || "User";
 }
 
+type CreateGroupModalProps = Readonly<{
+  visible: boolean;
+  onClose: () => void;
+  ownerId: string;
+  onDone: () => void;
+}>;
+
 function CreateGroupModal({
   visible,
   onClose,
   ownerId,
   onDone,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  ownerId: string;
-  onDone: () => void;
-}) {
+}: CreateGroupModalProps) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [name, setName] = useState("");

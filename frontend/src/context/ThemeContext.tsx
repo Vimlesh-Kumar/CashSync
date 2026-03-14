@@ -80,7 +80,7 @@ const ThemeContext = createContext<ThemeContextValue>({
   setPreference: async () => {},
 });
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export function ThemeProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const systemTheme = useSystemColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>("system");
   const [ready, setReady] = useState(false);

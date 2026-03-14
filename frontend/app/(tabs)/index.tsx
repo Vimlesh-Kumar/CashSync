@@ -215,19 +215,21 @@ export default function HomeScreen() {
   );
 }
 
+type ActionProps = Readonly<{
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  color: string;
+  styles: ReturnType<typeof createStyles>;
+}>;
+
 function Action({
   icon,
   label,
   onPress,
   color,
   styles,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-  color: string;
-  styles: ReturnType<typeof createStyles>;
-}) {
+}: ActionProps) {
   return (
     <Pressable style={styles.action} onPress={onPress}>
       <Ionicons name={icon} size={22} color={color} />

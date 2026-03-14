@@ -46,7 +46,7 @@ const AuthContext = createContext<AuthContextValue>({
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [initialising, setInitialising] = useState(true);

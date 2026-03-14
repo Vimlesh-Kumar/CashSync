@@ -116,17 +116,19 @@ function formatBalanceHint(net: number, currency: string) {
 
 // ─── SMS Modal ────────────────────────────────────────────────────────────────
 
+type SmsModalProps = Readonly<{
+  visible: boolean;
+  authorId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}>;
+
 function SmsModal({
   visible,
   authorId,
   onClose,
   onSuccess,
-}: {
-  visible: boolean;
-  authorId: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
+}: SmsModalProps) {
   const [text, setText] = useState("");
   const [loadingAuto, setLoadingAuto] = useState(false);
   const [loadingManual, setLoadingManual] = useState(false);
@@ -366,17 +368,19 @@ const smsS = StyleSheet.create({
 
 // ─── Rename Modal ─────────────────────────────────────────────────────────────
 
+type RenameModalProps = Readonly<{
+  tx: Transaction;
+  onClose: () => void;
+  onSaved: () => void;
+  onOpenSplit: (tx: Transaction) => void;
+}>;
+
 function RenameModal({
   tx,
   onClose,
   onSaved,
   onOpenSplit,
-}: {
-  tx: Transaction;
-  onClose: () => void;
-  onSaved: () => void;
-  onOpenSplit: (tx: Transaction) => void;
-}) {
+}: RenameModalProps) {
   const [title, setTitle] = useState(tx.title);
   const [note, setNote] = useState(tx.note || "");
   const [category, setCategory] = useState(tx.category);
@@ -585,17 +589,19 @@ function RenameModal({
   );
 }
 
+type SplitModalProps = Readonly<{
+  tx: Transaction;
+  authorId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}>;
+
 function SplitModal({
   tx,
   authorId,
   onClose,
   onSaved,
-}: {
-  tx: Transaction;
-  authorId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
+}: SplitModalProps) {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [allUsers, setAllUsers] = useState<
     { id: string; name?: string; email: string }[]
@@ -933,19 +939,21 @@ function SplitModal({
   );
 }
 
+type CreateTransactionModalProps = Readonly<{
+  visible: boolean;
+  authorId: string;
+  defaultCurrency: string;
+  onClose: () => void;
+  onSaved: () => void;
+}>;
+
 function CreateTransactionModal({
   visible,
   authorId,
   defaultCurrency,
   onClose,
   onSaved,
-}: {
-  visible: boolean;
-  authorId: string;
-  defaultCurrency: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
+}: CreateTransactionModalProps) {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<"EXPENSE" | "INCOME" | "TRANSFER">("EXPENSE");
@@ -1349,7 +1357,7 @@ export default function ExploreScreen() {
 
 // ─── Transaction Card (detailed) ──────────────────────────────────────────────
 
-function TxCard({ tx }: { tx: Transaction }) {
+function TxCard({ tx }: Readonly<{ tx: Transaction }>) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createTxCardStyles(colors), [colors]);
   const isCredit = tx.type === "INCOME";
