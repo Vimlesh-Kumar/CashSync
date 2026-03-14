@@ -8,11 +8,11 @@ export interface ParsedTransactionPayload {
     raw: string;
 }
 
-const AMOUNT_PATTERN = /\b(?:INR|Rs\.?|Rs:)\s*([0-9][0-9,]*(?:\.[0-9]+)?)\b/i;
+const AMOUNT_PATTERN = /\b(?:INR|Rs\.?|Rs:)\s*(\d[\d,]*(?:\.\d+)?)\b/i;
 const DIRECTION_PATTERN = /\b(debited|credited|debit|credit|received|refund|sent|paid)\b/i;
 const REFERENCE_PATTERNS: ReadonlyArray<RegExp> = [
-    /\bUPI\s*Ref(?:\s*No\.?)?\b[^\w-]{0,6}([A-Za-z0-9-]{5,})\b/i,
-    /\b(?:ref|reference|txn|utr)\b[^\w-]{0,6}([A-Za-z0-9-]{5,})\b/i,
+    /\bUPI\s*Ref(?:\s*No\.?)?\b[^\w-]{0,6}([a-z0-9-]{5,})\b/i,
+    /\b(?:ref|reference|txn|utr)\b[^\w-]{0,6}([a-z0-9-]{5,})\b/i,
 ];
 
 function normalizeAmount(raw: string): number {

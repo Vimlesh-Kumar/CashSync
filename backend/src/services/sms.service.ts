@@ -21,12 +21,12 @@ type SmsRule = {
 };
 
 const MAX_SMS_LENGTH = 500;
-const AMOUNT_PATTERN = /\b(?:INR|Rs\.?|Rs:)\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i;
+const AMOUNT_PATTERN = /\b(?:INR|Rs\.?|Rs:)\s*(\d[\d,]*(?:\.\d+)?)/i;
 const TYPE_PATTERN = /\b(debited|credited|debit|credit|sent|paid|received|deducted)\b/i;
-const DATE_PATTERN = /\b(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\b/;
+const DATE_PATTERN = /\b(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})\b/;
 const REF_PATTERNS: ReadonlyArray<RegExp> = [
-    /\bUPI\s*Ref(?:\s*No\.?)?\b[^\w-]{0,6}([A-Za-z0-9-]{5,})\b/i,
-    /\b(?:ref|reference|txn|utr|trf|info)\b[^\w-]{0,6}([A-Za-z0-9-]{5,})\b/i,
+    /\bUPI\s*Ref(?:\s*No\.?)?\b[^\w-]{0,6}([a-z0-9-]{5,})\b/i,
+    /\b(?:ref|reference|txn|utr|trf|info)\b[^\w-]{0,6}([a-z0-9-]{5,})\b/i,
 ];
 const BANK_PATTERNS: ReadonlyArray<SmsRule> = [
     { bank: "Union Bank", pattern: /\bUnion\s+Bank\b|\bA\/c\s*\*/i },
