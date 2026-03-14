@@ -46,6 +46,7 @@ export class UserRepository {
         provider: string;
         providerId?: string | null;
         password?: string | null;
+        defaultCurrency?: string;
     }) {
         return prisma.user.create({ data });
     }
@@ -54,7 +55,7 @@ export class UserRepository {
         return prisma.user.update({ where: { id }, data });
     }
 
-    updateProfile(id: string, data: { name?: string | null; avatarUrl?: string | null }) {
+    updateProfile(id: string, data: { name?: string | null; avatarUrl?: string | null; defaultCurrency?: string }) {
         return prisma.user.update({
             where: { id },
             data,

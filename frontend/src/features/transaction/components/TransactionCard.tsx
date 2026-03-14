@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "@/src/context/ThemeContext";
 import { Transaction } from "../api/transaction.api";
+import { formatCurrency } from "@/src/lib/currency";
 
 // Simple category to icon/color matcher
 const getCategoryIcon = (category: string) => {
@@ -28,8 +29,8 @@ export const TransactionCard: React.FC<{ transaction: Transaction }> = ({
   const styles = getStyles(colors);
   const isCredit = transaction.type === "INCOME";
   const displayAmount = isCredit
-    ? `+$${transaction.amount.toFixed(2)}`
-    : `-$${transaction.amount.toFixed(2)}`;
+    ? `+${formatCurrency(transaction.amount, transaction.currency)}`
+    : `-${formatCurrency(transaction.amount, transaction.currency)}`;
   const { emoji, color } = getCategoryIcon(transaction.category || "General");
   const reviewMeta =
     transaction.reviewState === "SPLIT"

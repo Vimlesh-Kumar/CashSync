@@ -32,6 +32,7 @@ export interface Transaction {
 }
 
 export interface TransactionStats {
+    currency: string;
     income: number;
     expense: number;
     net: number;
@@ -47,6 +48,7 @@ export interface FriendBalanceSummary {
     splitCount: number;
     groups: string[];
     lastActivityAt?: string | null;
+    currency: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,6 +95,7 @@ export const getTransactions = async (
 export const createTransaction = async (data: {
     title: string;
     amount: number;
+    currency?: string;
     type?: string;
     source?: string;
     category?: string;
@@ -110,6 +113,7 @@ export const updateTransaction = async (
         title?: string;
         note?: string;
         category?: string;
+        currency?: string;
         isPersonal?: boolean;
         reviewState?: 'UNREVIEWED' | 'PERSONAL' | 'SPLIT';
         groupId?: string | null;
@@ -133,7 +137,7 @@ export const addSplits = async (
 export const settleSplit = async (splitId: string): Promise<SplitMember> =>
     req(`/transactions/splits/${splitId}/settle`, { method: 'PATCH' });
 
-export const getDebtSummary = async (userId: string): Promise<{ splits: any[]; totalOwed: number }> =>
+export const getDebtSummary = async (userId: string): Promise<{ splits: any[]; totalOwed: number; currency: string }> =>
     req(`/transactions/debts/${userId}`);
 
 export const getFriendBalances = async (userId: string): Promise<FriendBalanceSummary[]> =>
@@ -152,9 +156,10 @@ export const deleteCategoryRule = (ruleId: string) =>
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
-export const getStats = async (userId: string, from?: string, to?: string): Promise<TransactionStats> => {
+export const getStats = async (userId: string, from?: string, to?: string, targetCurrency?: string): Promise<TransactionStats> => {
     const params = new URLSearchParams({ userId });
     if (from) params.set('from', from);
     if (to) params.set('to', to);
+    if (targetCurrency) params.set('targetCurrency', targetCurrency);
     return req(`/transactions/stats?${params}`);
 };

@@ -31,21 +31,23 @@ export interface GroupSummary {
         youOwe: number;
         youAreOwed: number;
         net: number;
+        currency: string;
         recentTransactions: number;
     };
 }
 
 export interface GroupLedger {
     group: { id: string; name: string; description?: string; emoji?: string };
+    currency: string;
     members: GroupMember[];
-    balances: Array<{ userId: string; net: number }>;
-    suggestedSettlements: Array<{ fromUserId: string; toUserId: string; amount: number }>;
+    balances: Array<{ userId: string; net: number; currency: string; breakdown: Array<{ currency: string; amount: number }> }>;
+    suggestedSettlements: Array<{ fromUserId: string; toUserId: string; amount: number; currency: string }>;
     unsettledSplits: Array<{
         id: string;
         amountOwed: number;
         amountPaid: number;
         user: { id: string; name?: string; email: string };
-        transaction: { id: string; title: string; authorId: string; date: string };
+        transaction: { id: string; title: string; authorId: string; date: string; currency: string };
     }>;
 }
 
@@ -62,10 +64,11 @@ export const createGroup = (data: {
 export const addGroupMember = (groupId: string, data: { userId?: string; email?: string; role?: 'ADMIN' | 'MEMBER' }) =>
     req(`/groups/${groupId}/members`, { method: 'POST', body: JSON.stringify(data) });
 
-export const getGroupLedger = (groupId: string): Promise<GroupLedger> => req(`/groups/${groupId}/ledger`);
+export const getGroupLedger = (groupId: string, userId?: string): Promise<GroupLedger> =>
+    req(`/groups/${groupId}/ledger${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
 
 export const settleGroupDebt = (
     groupId: string,
-    payload: { fromUserId: string; toUserId: string; amount: number }
-): Promise<{ paid: number; remaining: number; fullyApplied: boolean }> =>
+    payload: { fromUserId: string; toUserId: string; amount: number; currency?: string }
+): Promise<{ paid: number; remaining: number; currency: string; fullyApplied: boolean }> =>
     req(`/groups/${groupId}/settle`, { method: 'POST', body: JSON.stringify(payload) });

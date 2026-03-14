@@ -25,6 +25,7 @@ import {
   settleGroupDebt,
 } from "@/src/features/group";
 import { FriendBalanceSummary, getFriendBalances } from "@/src/features/transaction";
+import { formatCurrency } from "@/src/lib/currency";
 
 function personName(user?: { id: string; name?: string; email: string }) {
   if (!user) return "User";
@@ -148,11 +149,11 @@ export default function GroupsScreen() {
     }
     setLoadingLedger(true);
     try {
-      setLedger(await getGroupLedger(selectedGroupId));
+      setLedger(await getGroupLedger(selectedGroupId, user?.id));
     } finally {
       setLoadingLedger(false);
     }
-  }, [selectedGroupId]);
+  }, [selectedGroupId, user?.id]);
 
   const loadFriends = useCallback(async () => {
     if (!user) return;
@@ -185,9 +186,9 @@ export default function GroupsScreen() {
     await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
   };
 
-  const settle = async (fromUserId: string, toUserId: string, amount: number) => {
+  const settle = async (fromUserId: string, toUserId: string, amount: number, currency: string) => {
     if (!selectedGroupId) return;
-    await settleGroupDebt(selectedGroupId, { fromUserId, toUserId, amount });
+    await settleGroupDebt(selectedGroupId, { fromUserId, toUserId, amount, currency });
     await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
   };
 
@@ -226,9 +227,15 @@ export default function GroupsScreen() {
               >
                 <Text style={styles.groupName}>{group.emoji ? `${group.emoji} ` : ""}{group.name}</Text>
                 <Text style={styles.groupMeta}>{group.members.length} members</Text>
-                <Text style={[styles.balanceLine, { color: colors.danger }]}>You owe: Rs {group.stats.youOwe.toFixed(2)}</Text>
-                <Text style={[styles.balanceLine, { color: colors.success }]}>You are owed: Rs {group.stats.youAreOwed.toFixed(2)}</Text>
-                <Text style={[styles.balanceLine, { color: group.stats.net >= 0 ? colors.success : colors.danger }]}>Net: Rs {group.stats.net.toFixed(2)}</Text>
+                <Text style={[styles.balanceLine, { color: colors.danger }]}>
+                  You owe: {formatCurrency(group.stats.youOwe, group.stats.currency)}
+                </Text>
+                <Text style={[styles.balanceLine, { color: colors.success }]}>
+                  You are owed: {formatCurrency(group.stats.youAreOwed, group.stats.currency)}
+                </Text>
+                <Text style={[styles.balanceLine, { color: group.stats.net >= 0 ? colors.success : colors.danger }]}>
+                  Net: {formatCurrency(group.stats.net, group.stats.currency)}
+                </Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -265,10 +272,10 @@ export default function GroupsScreen() {
                 <View key={`${route.fromUserId}-${route.toUserId}-${i}`} style={styles.balanceRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.memberName}>{from} pays {to}</Text>
-                    <Text style={styles.mutedText}>Rs {route.amount.toFixed(2)}</Text>
+                    <Text style={styles.mutedText}>{formatCurrency(route.amount, route.currency)}</Text>
                   </View>
                   {user?.id === route.fromUserId && (
-                    <Pressable style={[styles.primaryBtn, { paddingHorizontal: 14, paddingVertical: 10 }]} onPress={() => settle(route.fromUserId, route.toUserId, route.amount)}>
+                    <Pressable style={[styles.primaryBtn, { paddingHorizontal: 14, paddingVertical: 10 }]} onPress={() => settle(route.fromUserId, route.toUserId, route.amount, route.currency)}>
                       <Text style={styles.primaryBtnText}>Settle</Text>
                     </Pressable>
                   )}
@@ -286,7 +293,7 @@ export default function GroupsScreen() {
               <View key={b.userId} style={styles.balanceRow}>
                 <Text style={styles.memberName}>{personName(person)}</Text>
                 <Text style={{ color: b.net >= 0 ? colors.success : colors.danger, fontWeight: "700" }}>
-                  {b.net >= 0 ? "+" : ""}Rs {b.net.toFixed(2)}
+                  {b.net >= 0 ? "+" : ""}{formatCurrency(b.net, b.currency)}
                 </Text>
               </View>
             );
@@ -309,7 +316,9 @@ export default function GroupsScreen() {
                   </Text>
                 </View>
                 <Text style={{ color: friend.net >= 0 ? colors.success : colors.danger, fontWeight: "800" }}>
-                  {friend.net >= 0 ? `Gets ₹${friend.net.toFixed(2)}` : `Owes ₹${Math.abs(friend.net).toFixed(2)}`}
+                  {friend.net >= 0
+                    ? `Gets ${formatCurrency(friend.net, friend.currency)}`
+                    : `Owes ${formatCurrency(Math.abs(friend.net), friend.currency)}`}
                 </Text>
               </View>
             ))

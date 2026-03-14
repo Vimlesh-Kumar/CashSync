@@ -21,6 +21,7 @@ export interface CreateTransactionData {
     originalTitle?: string;
     note?: string | null;
     amount: number;
+    currency: string;
     type?: string;
     source?: string;
     sourceId?: string | null;
@@ -88,6 +89,7 @@ export const transactionRepository = {
                 originalTitle: data.originalTitle ?? data.title,
                 note: data.note ?? null,
                 amount: data.amount,
+                currency: data.currency,
                 type: data.type ?? 'EXPENSE',
                 source: data.source ?? 'MANUAL',
                 sourceId: data.sourceId ?? null,
@@ -103,13 +105,14 @@ export const transactionRepository = {
         });
     },
 
-    update(id: string, data: { title?: string; note?: string; category?: string; isPersonal?: boolean; reviewState?: string; groupId?: string | null }) {
+    update(id: string, data: { title?: string; note?: string; category?: string; currency?: string; isPersonal?: boolean; reviewState?: string; groupId?: string | null }) {
         return prisma.transaction.update({
             where: { id },
             data: {
                 ...(data.title !== undefined && { title: data.title }),
                 ...(data.note !== undefined && { note: data.note }),
                 ...(data.category !== undefined && { category: data.category }),
+                ...(data.currency !== undefined && { currency: data.currency }),
                 ...(data.isPersonal !== undefined && { isPersonal: data.isPersonal }),
                 ...(data.reviewState !== undefined && { reviewState: data.reviewState }),
                 ...(data.groupId !== undefined && {
@@ -120,7 +123,7 @@ export const transactionRepository = {
         });
     },
 
-    markAsPersonal(id: string, data: { title?: string; note?: string; category?: string }) {
+    markAsPersonal(id: string, data: { title?: string; note?: string; category?: string; currency?: string }) {
         return prisma.$transaction(async (tx) => {
             await tx.split.deleteMany({ where: { transactionId: id } });
             return tx.transaction.update({
@@ -129,6 +132,7 @@ export const transactionRepository = {
                     ...(data.title !== undefined && { title: data.title }),
                     ...(data.note !== undefined && { note: data.note }),
                     ...(data.category !== undefined && { category: data.category }),
+                    ...(data.currency !== undefined && { currency: data.currency }),
                     isPersonal: true,
                     reviewState: 'PERSONAL',
                     group: { disconnect: true },
@@ -251,6 +255,7 @@ export const transactionRepository = {
                         id: true,
                         title: true,
                         authorId: true,
+                        currency: true,
                         date: true,
                         author: { select: { id: true, name: true, email: true, avatarUrl: true } },
                         group: { select: { id: true, name: true, emoji: true } },

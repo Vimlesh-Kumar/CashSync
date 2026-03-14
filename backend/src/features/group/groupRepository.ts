@@ -80,6 +80,7 @@ export const groupRepository = {
                         id: true,
                         title: true,
                         amount: true,
+                        currency: true,
                         authorId: true,
                         date: true,
                     },
@@ -89,7 +90,7 @@ export const groupRepository = {
         });
     },
 
-    findUnsettledSplitsBetween(groupId: string, fromUserId: string, toUserId: string) {
+    findUnsettledSplitsBetween(groupId: string, fromUserId: string, toUserId: string, currency?: string) {
         return prisma.split.findMany({
             where: {
                 userId: fromUserId,
@@ -97,11 +98,12 @@ export const groupRepository = {
                 transaction: {
                     groupId,
                     authorId: toUserId,
+                    ...(currency ? { currency } : {}),
                 },
             },
             include: {
                 transaction: {
-                    select: { id: true, title: true, amount: true, authorId: true },
+                    select: { id: true, title: true, amount: true, currency: true, authorId: true },
                 },
             },
             orderBy: { transaction: { date: 'asc' } },
