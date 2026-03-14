@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useAppTheme } from "@/src/context/ThemeContext";
 import { Transaction } from "../api/transaction.api";
 
 // Simple category to icon/color matcher
@@ -23,6 +24,8 @@ const getCategoryIcon = (category: string) => {
 export const TransactionCard: React.FC<{ transaction: Transaction }> = ({
   transaction,
 }) => {
+  const { colors } = useAppTheme();
+  const styles = getStyles(colors);
   const isCredit = transaction.type === "INCOME";
   const displayAmount = isCredit
     ? `+$${transaction.amount.toFixed(2)}`
@@ -64,7 +67,7 @@ export const TransactionCard: React.FC<{ transaction: Transaction }> = ({
 
       <View style={styles.rightGroup}>
         <Text
-          style={[styles.amount, { color: isCredit ? "#39FF14" : "#FFFFFF" }]}
+          style={[styles.amount, { color: isCredit ? colors.success : colors.text }]}
         >
           {displayAmount}
         </Text>
@@ -84,17 +87,17 @@ export const TransactionCard: React.FC<{ transaction: Transaction }> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) => StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: colors.border,
     marginBottom: 12,
   },
   leftGroup: {
@@ -119,12 +122,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: colors.text,
     marginBottom: 4,
   },
   meta: {
     fontSize: 12,
-    color: "rgba(255, 255, 255, 0.5)",
+    color: colors.textMuted,
   },
   rightGroup: {
     alignItems: "flex-end",

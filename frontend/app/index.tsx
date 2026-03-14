@@ -1,7 +1,7 @@
 import * as AuthSession from "expo-auth-session";
 import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -16,12 +16,15 @@ import {
 } from "react-native";
 
 import { useAuth } from "@/src/context/AuthContext";
+import { useAppTheme } from "@/src/context/ThemeContext";
 import { syncUser } from "@/src/features/user";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const { signIn } = useAuth();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -175,7 +178,7 @@ export default function AuthScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={["#0D1117", "#111827", "#0D1117"]}
+        colors={colors.gradient}
         style={StyleSheet.absoluteFill}
       />
 
@@ -248,11 +251,11 @@ export default function AuthScreen() {
                     <TextInput
                       style={styles.input}
                       placeholder="e.g. Vimlesh Kumar"
-                      placeholderTextColor="#3D4E68"
+                      placeholderTextColor={colors.textMuted}
                       value={name}
                       onChangeText={setName}
                       autoCapitalize="words"
-                      selectionColor="#4F8EF7"
+                      selectionColor={colors.accent}
                     />
                   </View>
                 )}
@@ -262,12 +265,12 @@ export default function AuthScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="hello@cashsync.app"
-                    placeholderTextColor="#3D4E68"
+                    placeholderTextColor={colors.textMuted}
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    selectionColor="#4F8EF7"
+                    selectionColor={colors.accent}
                   />
                 </View>
 
@@ -283,11 +286,11 @@ export default function AuthScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="Min. 6 characters"
-                    placeholderTextColor="#3D4E68"
+                    placeholderTextColor={colors.textMuted}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry
-                    selectionColor="#4F8EF7"
+                    selectionColor={colors.accent}
                   />
                 </View>
 
@@ -362,10 +365,10 @@ export default function AuthScreen() {
 
 const CARD_MAX_WIDTH = 480;
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0D1117",
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -382,14 +385,14 @@ const styles = StyleSheet.create({
   blobTopLeft: {
     width: 320,
     height: 320,
-    backgroundColor: "#4F8EF7",
+    backgroundColor: colors.accent,
     top: -80,
     left: -100,
   },
   blobBottomRight: {
     width: 260,
     height: 260,
-    backgroundColor: "#9B59F5",
+    backgroundColor: colors.purple,
     bottom: -60,
     right: -60,
   },
@@ -401,14 +404,14 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 22,
-    backgroundColor: "#4F8EF7",
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
     ...Platform.select({
-      web: { boxShadow: "0 8px 32px rgba(79, 142, 247, 0.45)" },
+      web: { boxShadow: "0 8px 32px rgba(37, 99, 235, 0.45)" },
       default: {
-        shadowColor: "#4F8EF7",
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.45,
         shadowRadius: 16,
@@ -419,30 +422,30 @@ const styles = StyleSheet.create({
   logoMarkText: {
     fontSize: 26,
     fontWeight: "800",
-    color: "#fff",
+    color: colors.surface,
     letterSpacing: 1,
   },
   appName: {
     fontSize: 34,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: colors.text,
     letterSpacing: -0.5,
     marginBottom: 10,
   },
   tagline: {
     fontSize: 16,
-    color: "#8B9AB3",
+    color: colors.textMuted,
     textAlign: "center",
     lineHeight: 24,
   },
   card: {
     width: "100%",
     maxWidth: CARD_MAX_WIDTH,
-    backgroundColor: "#161D2C",
+    backgroundColor: colors.card,
     borderRadius: 28,
     padding: 28,
     borderWidth: 1,
-    borderColor: "#1E2D46",
+    borderColor: colors.border,
     ...Platform.select({
       web: { boxShadow: "0 24px 64px rgba(0,0,0,0.7)" },
       default: {
@@ -456,7 +459,7 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#0D1117",
+    backgroundColor: colors.background,
     borderRadius: 14,
     padding: 4,
     marginBottom: 28,
@@ -467,7 +470,7 @@ const styles = StyleSheet.create({
     top: 4,
     bottom: 4,
     width: "48%",
-    backgroundColor: "#4F8EF7",
+    backgroundColor: colors.accent,
     borderRadius: 10,
   },
   tabBtn: {
@@ -479,10 +482,10 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#4A5568",
+    color: colors.textMuted,
   },
   tabLabelActive: {
-    color: "#FFFFFF",
+    color: colors.text,
   },
   form: {
     gap: 20,
@@ -498,22 +501,22 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#8B9AB3",
+    color: colors.textMuted,
     letterSpacing: 0.3,
   },
   forgotText: {
     fontSize: 13,
-    color: "#4F8EF7",
+    color: colors.accent,
     fontWeight: "600",
   },
   input: {
-    backgroundColor: "#0D1117",
+    backgroundColor: colors.input,
     borderWidth: 1.5,
-    borderColor: "#1E2D46",
+    borderColor: colors.border,
     borderRadius: 14,
     paddingVertical: 15,
     paddingHorizontal: 18,
-    color: "#FFFFFF",
+    color: colors.text,
     fontSize: 16,
     outlineStyle: "none",
   } as any,
@@ -525,20 +528,20 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   errorText: {
-    color: "#F87171",
+    color: colors.danger,
     fontSize: 13,
     fontWeight: "500",
   },
   primaryBtn: {
-    backgroundColor: "#4F8EF7",
+    backgroundColor: colors.accent,
     borderRadius: 14,
     paddingVertical: 17,
     alignItems: "center",
     marginTop: 4,
     ...Platform.select({
-      web: { boxShadow: "0 4px 20px rgba(79, 142, 247, 0.4)" },
+      web: { boxShadow: "0 4px 20px rgba(37, 99, 235, 0.4)" },
       default: {
-        shadowColor: "#4F8EF7",
+        shadowColor: colors.accent,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.4,
         shadowRadius: 12,
@@ -564,10 +567,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#1E2D46",
+    backgroundColor: colors.border,
   },
   dividerLabel: {
-    color: "#3D4E68",
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "600",
   },
@@ -582,27 +585,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 10,
     paddingVertical: 14,
-    backgroundColor: "#0D1117",
+    backgroundColor: colors.input,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#1E2D46",
+    borderColor: colors.border,
   },
   oauthBtnPressed: {
-    borderColor: "#4F8EF7",
-    backgroundColor: "rgba(79, 142, 247, 0.06)",
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   oauthIcon: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: colors.text,
   },
   oauthLabel: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#8B9AB3",
+    color: colors.textMuted,
   },
   footerNote: {
-    color: "#3D4E68",
+    color: colors.textMuted,
     fontSize: 12,
     textAlign: "center",
     lineHeight: 18,

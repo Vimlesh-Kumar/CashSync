@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -15,6 +15,7 @@ import {
 } from "react-native";
 
 import { useAuth } from "@/src/context/AuthContext";
+import { useAppTheme } from "@/src/context/ThemeContext";
 import { getGroups, GroupSummary } from "@/src/features/group";
 import {
   addSplits,
@@ -934,6 +935,8 @@ function SplitModal({
 
 export default function ExploreScreen() {
   const { user } = useAuth();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createExploreStyles(colors), [colors]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCat, setFilterCat] = useState("All");
@@ -975,53 +978,53 @@ export default function ExploreScreen() {
   }, [fetch]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <LinearGradient
-        colors={[BG, "#111827"]}
+        colors={[colors.background, colors.backgroundAlt]}
         style={StyleSheet.absoluteFill}
       />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={s.scroll}
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Header ── */}
-        <View style={s.header}>
-          <Text style={s.heading}>Transactions</Text>
-          <Pressable style={s.smsBtn} onPress={() => setSmsOpen(true)}>
+        <View style={styles.header}>
+          <Text style={styles.heading}>Transactions</Text>
+          <Pressable style={styles.smsBtn} onPress={() => setSmsOpen(true)}>
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
             >
-              <Ionicons name="scan" size={14} color={GREEN} />
-              <Text style={s.smsBtnText}>Auto Detect</Text>
+              <Ionicons name="scan" size={14} color={colors.success} />
+              <Text style={styles.smsBtnText}>Auto Detect</Text>
             </View>
           </Pressable>
         </View>
 
         <TextInput
-          style={s.search}
+          style={styles.search}
           value={search}
           onChangeText={setSearch}
           placeholder="Search merchant, title, notes"
-          placeholderTextColor={MUTED}
-          selectionColor={ACCENT}
+          placeholderTextColor={colors.textMuted}
+          selectionColor={colors.accent}
         />
 
         {/* ── Type filter ── */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.pills}
+          contentContainerStyle={styles.pills}
           style={{ marginBottom: 12 }}
         >
           {TYPES.map((t) => (
             <Pressable
               key={t}
               onPress={() => setFilterType(t)}
-              style={[s.pill, filterType === t && s.pillActive]}
+              style={[styles.pill, filterType === t && styles.pillActive]}
             >
-              <Text style={[s.pillText, filterType === t && s.pillTextActive]}>
+              <Text style={[styles.pillText, filterType === t && styles.pillTextActive]}>
                 {t}
               </Text>
             </Pressable>
@@ -1032,19 +1035,19 @@ export default function ExploreScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.pills}
+          contentContainerStyle={styles.pills}
           style={{ marginBottom: 12 }}
         >
           {SOURCES.map((source) => (
             <Pressable
               key={source}
               onPress={() => setFilterSource(source)}
-              style={[s.pill, filterSource === source && s.pillActive]}
+              style={[styles.pill, filterSource === source && styles.pillActive]}
             >
               <Text
                 style={[
-                  s.pillText,
-                  filterSource === source && s.pillTextActive,
+                  styles.pillText,
+                  filterSource === source && styles.pillTextActive,
                 ]}
               >
                 {source}
@@ -1056,19 +1059,19 @@ export default function ExploreScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.pills}
+          contentContainerStyle={styles.pills}
           style={{ marginBottom: 12 }}
         >
           {REVIEW_STATES.map((state) => (
             <Pressable
               key={state}
               onPress={() => setFilterReviewState(state)}
-              style={[s.pill, filterReviewState === state && s.pillActive]}
+              style={[styles.pill, filterReviewState === state && styles.pillActive]}
             >
               <Text
                 style={[
-                  s.pillText,
-                  filterReviewState === state && s.pillTextActive,
+                  styles.pillText,
+                  filterReviewState === state && styles.pillTextActive,
                 ]}
               >
                 {state === "ALL"
@@ -1085,17 +1088,17 @@ export default function ExploreScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.pills}
+          contentContainerStyle={styles.pills}
           style={{ marginBottom: 12 }}
         >
           {["ALL", "7D", "30D"].map((window) => (
             <Pressable
               key={window}
               onPress={() => setDateRange(window as "ALL" | "7D" | "30D")}
-              style={[s.pill, dateRange === window && s.pillActive]}
+              style={[styles.pill, dateRange === window && styles.pillActive]}
             >
               <Text
-                style={[s.pillText, dateRange === window && s.pillTextActive]}
+                style={[styles.pillText, dateRange === window && styles.pillTextActive]}
               >
                 {window === "ALL" ? "All Dates" : `Last ${window}`}
               </Text>
@@ -1107,14 +1110,14 @@ export default function ExploreScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.pills}
+          contentContainerStyle={styles.pills}
           style={{ marginBottom: 20 }}
         >
           {CATEGORIES.map((c) => (
             <Pressable
               key={c}
               onPress={() => setFilterCat(c)}
-              style={[s.pill, filterCat === c && s.pillActive]}
+              style={[styles.pill, filterCat === c && styles.pillActive]}
             >
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
@@ -1123,10 +1126,10 @@ export default function ExploreScreen() {
                   <Ionicons
                     name={getMeta(c).icon}
                     size={14}
-                    color={filterCat === c ? ACCENT : TEXT_DIM}
+                    color={filterCat === c ? colors.accent : colors.textMuted}
                   />
                 )}
-                <Text style={[s.pillText, filterCat === c && s.pillTextActive]}>
+                <Text style={[styles.pillText, filterCat === c && styles.pillTextActive]}>
                   {c}
                 </Text>
               </View>
@@ -1136,16 +1139,16 @@ export default function ExploreScreen() {
 
         {/* ── List ── */}
         {loading ? (
-          <ActivityIndicator color={ACCENT} style={{ marginTop: 40 }} />
+          <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
         ) : transactions.length === 0 ? (
-          <View style={s.empty}>
+          <View style={styles.empty}>
             <Ionicons
               name="search"
               size={42}
-              color={MUTED}
+              color={colors.textMuted}
               style={{ marginBottom: 12 }}
             />
-            <Text style={{ color: MUTED, fontSize: 15 }}>
+            <Text style={{ color: colors.textMuted, fontSize: 15 }}>
               No transactions found
             </Text>
           </View>
@@ -1158,7 +1161,7 @@ export default function ExploreScreen() {
         )}
 
         {transactions.length > 0 && (
-          <Text style={s.hint}>
+          <Text style={styles.hint}>
             Tap a transaction to label it as personal or split, then edit it
             anytime if someone tapped the wrong option.
           </Text>
@@ -1197,6 +1200,8 @@ export default function ExploreScreen() {
 // ─── Transaction Card (detailed) ──────────────────────────────────────────────
 
 function TxCard({ tx }: { tx: Transaction }) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createTxCardStyles(colors), [colors]);
   const isCredit = tx.type === "INCOME";
   const meta = getMeta(tx.category);
   const review = getReviewMeta(tx);
@@ -1207,20 +1212,20 @@ function TxCard({ tx }: { tx: Transaction }) {
         ? "Tap to manage the split"
         : "Tap to edit this personal transaction";
   return (
-    <View style={c.card}>
-      <View style={[c.icon, { backgroundColor: meta.color + "22" }]}>
+    <View style={styles.card}>
+      <View style={[styles.icon, { backgroundColor: meta.color + "22" }]}>
         <Ionicons name={meta.icon} size={24} color={meta.color} />
       </View>
-      <View style={c.info}>
-        <Text style={c.title} numberOfLines={1}>
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={1}>
           {tx.title}
         </Text>
         {tx.note ? (
-          <Text style={c.note} numberOfLines={1}>
+          <Text style={styles.note} numberOfLines={1}>
             {tx.note}
           </Text>
         ) : null}
-        <Text style={c.helper}>{helperText}</Text>
+        <Text style={styles.helper}>{helperText}</Text>
         <View
           style={{
             flexDirection: "row",
@@ -1229,10 +1234,10 @@ function TxCard({ tx }: { tx: Transaction }) {
             marginTop: 3,
           }}
         >
-          <View style={c.catPill}>
-            <Text style={c.catText}>{tx.category}</Text>
+          <View style={styles.catPill}>
+            <Text style={styles.catText}>{tx.category}</Text>
           </View>
-          <Text style={c.date}>
+          <Text style={styles.date}>
             {new Date(tx.date).toLocaleDateString("en-IN", {
               day: "numeric",
               month: "short",
@@ -1240,32 +1245,32 @@ function TxCard({ tx }: { tx: Transaction }) {
             })}
           </Text>
           {tx.source !== "MANUAL" && (
-            <View style={[c.catPill, { backgroundColor: "#9B59F522" }]}>
-              <Text style={[c.catText, { color: "#9B59F5" }]}>{tx.source}</Text>
+            <View style={[styles.catPill, { backgroundColor: "#9B59F522" }]}>
+              <Text style={[styles.catText, { color: "#9B59F5" }]}>{tx.source}</Text>
             </View>
           )}
-          <View style={[c.catPill, { backgroundColor: review.background }]}>
-            <Text style={[c.catText, { color: review.color }]}>{review.label}</Text>
+          <View style={[styles.catPill, { backgroundColor: review.background }]}>
+            <Text style={[styles.catText, { color: review.color }]}>{review.label}</Text>
           </View>
         </View>
       </View>
-      <Text style={[c.amount, { color: isCredit ? GREEN : "#fff" }]}>
+      <Text style={[styles.amount, { color: isCredit ? colors.success : colors.text }]}>
         {isCredit ? "+" : "−"}₹{tx.amount.toLocaleString("en-IN")}
       </Text>
     </View>
   );
 }
 
-const c = StyleSheet.create({
+const createTxCardStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) => StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: CARD_BG,
+    backgroundColor: colors.card,
     borderRadius: 18,
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
   },
   icon: {
     width: 50,
@@ -1276,17 +1281,17 @@ const c = StyleSheet.create({
     marginRight: 14,
   },
   info: { flex: 1 },
-  title: { fontSize: 15, fontWeight: "700", color: "#fff", marginBottom: 2 },
-  note: { fontSize: 12, color: TEXT_DIM, marginBottom: 2 },
-  helper: { fontSize: 11, color: MUTED, marginBottom: 2 },
-  date: { fontSize: 11, color: MUTED },
+  title: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: 2 },
+  note: { fontSize: 12, color: colors.textSecondary, marginBottom: 2 },
+  helper: { fontSize: 11, color: colors.textMuted, marginBottom: 2 },
+  date: { fontSize: 11, color: colors.textMuted },
   catPill: {
-    backgroundColor: "#ffffff10",
+    backgroundColor: colors.accentSoft,
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 2,
   },
-  catText: { fontSize: 10, color: TEXT_DIM, fontWeight: "600" },
+  catText: { fontSize: 10, color: colors.textSecondary, fontWeight: "600" },
   amount: { fontSize: 16, fontWeight: "700", marginLeft: 8 },
 });
 
@@ -1418,7 +1423,7 @@ const r = StyleSheet.create({
   },
 });
 
-const s = StyleSheet.create({
+const createExploreStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) => StyleSheet.create({
   scroll: {
     paddingHorizontal: 18,
     paddingTop: Platform.OS === "web" ? 40 : 58,
@@ -1433,24 +1438,24 @@ const s = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  heading: { fontSize: 26, fontWeight: "800", color: "#fff" },
+  heading: { fontSize: 26, fontWeight: "800", color: colors.text },
   smsBtn: {
-    backgroundColor: GREEN + "22",
+    backgroundColor: colors.success + "22",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: GREEN + "33",
+    borderColor: colors.success + "33",
   },
-  smsBtnText: { color: GREEN, fontWeight: "700", fontSize: 13 },
+  smsBtnText: { color: colors.success, fontWeight: "700", fontSize: 13 },
   search: {
-    backgroundColor: CARD_BG,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 11,
-    color: "#fff",
+    color: colors.text,
     marginBottom: 12,
   },
   pills: { gap: 8, paddingBottom: 4 },
@@ -1458,17 +1463,17 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: CARD_BG,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
   },
-  pillActive: { backgroundColor: ACCENT + "22", borderColor: ACCENT },
-  pillText: { fontSize: 13, color: TEXT_DIM, fontWeight: "600" },
-  pillTextActive: { color: ACCENT },
+  pillActive: { backgroundColor: colors.accent + "22", borderColor: colors.accent },
+  pillText: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
+  pillTextActive: { color: colors.accent },
   empty: { alignItems: "center", paddingVertical: 64 },
   hint: {
     textAlign: "center",
-    color: MUTED,
+    color: colors.textMuted,
     fontSize: 12,
     marginTop: 12,
     paddingBottom: 4,

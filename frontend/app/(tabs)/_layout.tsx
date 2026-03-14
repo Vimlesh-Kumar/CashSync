@@ -2,24 +2,29 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
-
-const ACCENT = "#00F260";
-const MUTED = "#A1A1AA";
-const CARD_BG = "#09090B";
-const BORDER = "#27272A";
+import { useAppTheme } from "@/src/context/ThemeContext";
 
 function TabIcon({
   icon,
   focused,
-  label,
+  accent,
+  muted,
 }: {
   icon: any;
   focused: boolean;
-  label: string;
+  accent: string;
+  muted: string;
 }) {
   return (
-    <View style={[ti.wrap, focused && ti.wrapActive]}>
-      <Ionicons name={icon} style={[ti.icon, focused && ti.iconActive]} />
+    <View style={[ti.wrap, focused && { backgroundColor: `${accent}22` }]}>
+      <Ionicons
+        name={icon}
+        style={[
+          ti.icon,
+          { color: muted },
+          focused && { color: accent },
+        ]}
+      />
     </View>
   );
 }
@@ -32,12 +37,12 @@ const ti = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  wrapActive: { backgroundColor: ACCENT + "22" },
-  icon: { fontSize: 20, color: MUTED },
-  iconActive: { color: ACCENT },
+  icon: { fontSize: 20 },
 });
 
 export default function TabLayout() {
+  const { colors } = useAppTheme();
+
   return (
     <Tabs
       screenOptions={{
@@ -48,15 +53,15 @@ export default function TabLayout() {
             style={[
               StyleSheet.absoluteFill,
               {
-                backgroundColor: CARD_BG + "F5",
+                backgroundColor: colors.card + "F5",
                 borderTopWidth: 1,
-                borderTopColor: BORDER,
+                borderTopColor: colors.border,
               },
             ]}
           />
         ),
-        tabBarActiveTintColor: ACCENT,
-        tabBarInactiveTintColor: MUTED,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.label,
         tabBarShowLabel: true,
       }}
@@ -69,7 +74,8 @@ export default function TabLayout() {
             <TabIcon
               icon={focused ? "home" : "home-outline"}
               focused={focused}
-              label="Home"
+              accent={colors.accent}
+              muted={colors.textMuted}
             />
           ),
         }}
@@ -82,7 +88,8 @@ export default function TabLayout() {
             <TabIcon
               icon={focused ? "bar-chart" : "bar-chart-outline"}
               focused={focused}
-              label="Analytics"
+              accent={colors.accent}
+              muted={colors.textMuted}
             />
           ),
         }}
@@ -95,7 +102,8 @@ export default function TabLayout() {
             <TabIcon
               icon={focused ? "git-network" : "git-network-outline"}
               focused={focused}
-              label="Split"
+              accent={colors.accent}
+              muted={colors.textMuted}
             />
           ),
         }}
@@ -103,12 +111,13 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: "Cards",
+          title: "Transactions",
           tabBarIcon: ({ focused }) => (
             <TabIcon
               icon={focused ? "card" : "card-outline"}
               focused={focused}
-              label="Cards"
+              accent={colors.accent}
+              muted={colors.textMuted}
             />
           ),
         }}
@@ -121,7 +130,8 @@ export default function TabLayout() {
             <TabIcon
               icon={focused ? "person" : "person-outline"}
               focused={focused}
-              label="Profile"
+              accent={colors.accent}
+              muted={colors.textMuted}
             />
           ),
         }}

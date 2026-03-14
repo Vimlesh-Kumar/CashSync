@@ -1,4 +1,5 @@
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
+import { ThemeProvider, useAppTheme } from "@/src/context/ThemeContext";
 import * as SystemUI from "expo-system-ui";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -14,21 +15,22 @@ import AuthScreen from "./index";
  */
 function AuthGate() {
   const { user, initialising } = useAuth();
+  const { colors, ready } = useAppTheme();
   const segments = useSegments();
   const inTabsGroup = segments[0] === "(tabs)";
 
   // Show a full-screen splash while we check AsyncStorage
-  if (initialising) {
+  if (initialising || !ready) {
     return (
       <View
         style={{
           flex: 1,
-          backgroundColor: "#0D1117",
+          backgroundColor: colors.background,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <ActivityIndicator color="#4F8EF7" size="large" />
+        <ActivityIndicator color={colors.accent} size="large" />
       </View>
     );
   }
@@ -47,7 +49,7 @@ function AuthGate() {
         headerShown: false,
         animation: "none",
         contentStyle: {
-          backgroundColor: "#0D1117",
+          backgroundColor: colors.background,
         },
       }}
     />
@@ -59,14 +61,26 @@ function AuthGate() {
  * screen can access auth state via useAuth().
  */
 export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <RootShell />
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
+
+function RootShell() {
+  const { resolvedTheme, colors } = useAppTheme();
+
   useEffect(() => {
-    void SystemUI.setBackgroundColorAsync("#0D1117");
-  }, []);
+    void SystemUI.setBackgroundColorAsync(colors.background);
+  }, [colors.background]);
 
   return (
-    <AuthProvider>
-      <StatusBar style="light" />
+    <>
+      <StatusBar style={resolvedTheme === "dark" ? "light" : "dark"} />
       <AuthGate />
-    </AuthProvider>
+    </>
   );
 }
