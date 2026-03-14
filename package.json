@@ -18,11 +18,6 @@
     "setup:sonar:github": "bash scripts/setup-github-sonar.sh"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "eslint": "^9.25.0",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
-    "eslint-plugin-react": "^7.0.0",
-    "eslint-plugin-react-native": "^4.0.0"
+    "concurrently": "^8.2.2"
   }
 }
