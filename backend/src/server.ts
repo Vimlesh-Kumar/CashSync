@@ -10,10 +10,14 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-const allowedOrigins = new Set((process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:8081,http://localhost:3000')
+const allowedOrigins = new Set((process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0));
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
@@ -24,6 +28,24 @@ const corsOptions: CorsOptions = {
     }
 
     if (allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    try {
+      const requestOrigin = new URL(origin);
+      const isSecureOrigin = requestOrigin.protocol === 'https:';
+      const isLocalDevOrigin = isLoopbackHost(requestOrigin.hostname);
+
+      if (isSecureOrigin || isLocalDevOrigin) {
+        callback(null, true);
+        return;
+      }
+    } catch {
+      // Invalid origin format will be rejected below.
+    }
+
+    if (process.env.ENV_CONTEXT === 'DEVELOPMENT' && allowedOrigins.size === 0) {
       callback(null, true);
       return;
     }
