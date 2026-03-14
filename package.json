@@ -14,14 +14,10 @@
     "lint:check": "npm run lint:backend && npm run lint:frontend",
     "lint:backend": "npm --prefix backend run lint",
     "lint:backend:fix": "npm --prefix backend run lint:fix",
-    "lint:frontend": "npm --prefix frontend run lint"
+    "lint:frontend": "npm --prefix frontend run lint",
+    "setup:sonar:github": "bash scripts/setup-github-sonar.sh"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "eslint": "^9.25.0",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
-    "eslint-plugin-react": "^7.0.0",
-    "eslint-plugin-react-native": "^4.0.0"
+    "concurrently": "^8.2.2"
   }
 }

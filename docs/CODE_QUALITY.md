@@ -40,12 +40,21 @@ npm run lint:frontend
   - `sonar`: runs Sonar scan and quality gate (only when `SONAR_TOKEN` is configured)
 
 ### Required GitHub Variables/Secrets
+- Variable: `SONAR_ENABLED=true` (controls whether Sonar job runs)
 - Secret: `SONAR_TOKEN`
 - Variable: `SONAR_PROJECT_KEY`
-- Variable: `SONAR_ORGANIZATION` (for SonarCloud)
+- Variable: `SONAR_ORGANIZATION` (required for SonarCloud, empty for self-hosted SonarQube)
 - Variable: `SONAR_HOST_URL`
   - SonarCloud: `https://sonarcloud.io`
   - Self-hosted SonarQube: your server URL
+
+### One-command GitHub setup from local machine
+
+```bash
+./scripts/setup-github-sonar.sh
+```
+
+This script uses `gh` CLI to set all required repo Variables/Secrets.
 
 ## 3. Troubleshooting
 
@@ -59,12 +68,12 @@ npm --prefix frontend ci
 ```
 
 ### Sonar job skipped in CI
-The workflow intentionally skips the Sonar job if `SONAR_TOKEN` is missing.
+The workflow intentionally skips the Sonar job unless `SONAR_ENABLED=true`.
 
 ### Sonar scan fails with key/organization errors
 Verify:
 - `SONAR_PROJECT_KEY` is correct
-- `SONAR_ORGANIZATION` matches your SonarCloud org
+- `SONAR_ORGANIZATION` is set for SonarCloud (leave empty for self-hosted SonarQube)
 - `SONAR_HOST_URL` matches your Sonar instance
 
 ### Quality gate fails
