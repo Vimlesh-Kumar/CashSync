@@ -50,7 +50,7 @@ export default function AuthScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim]);
 
   const switchTab = (toLogin: boolean) => {
     setIsLogin(toLogin);

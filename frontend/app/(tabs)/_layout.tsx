@@ -4,17 +4,19 @@ import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useAppTheme } from "@/src/context/ThemeContext";
 
+type TabIconProps = Readonly<{
+  icon: any;
+  focused: boolean;
+  accent: string;
+  muted: string;
+}>;
+
 function TabIcon({
   icon,
   focused,
   accent,
   muted,
-}: {
-  icon: any;
-  focused: boolean;
-  accent: string;
-  muted: string;
-}) {
+}: TabIconProps) {
   return (
     <View style={[ti.wrap, focused && { backgroundColor: `${accent}22` }]}>
       <Ionicons

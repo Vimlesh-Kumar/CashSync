@@ -116,17 +116,19 @@ function formatBalanceHint(net: number, currency: string) {
 
 // ─── SMS Modal ────────────────────────────────────────────────────────────────
 
+type SmsModalProps = Readonly<{
+  visible: boolean;
+  authorId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}>;
+
 function SmsModal({
   visible,
   authorId,
   onClose,
   onSuccess,
-}: {
-  visible: boolean;
-  authorId: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
+}: SmsModalProps) {
   const [text, setText] = useState("");
   const [loadingAuto, setLoadingAuto] = useState(false);
   const [loadingManual, setLoadingManual] = useState(false);
@@ -134,10 +136,10 @@ function SmsModal({
   const [autoStatus, setAutoStatus] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
-  const looksLikeTransactionSms = (value: string) =>
-    /(upi|debited|credited|sent|received|a\/c|ac\s*x?\d|bank|ref)/i.test(value);
+  const looksLikeTransactionSms = useCallback((value: string) =>
+    /(upi|debited|credited|sent|received|a\/c|ac\s*x?\d|bank|ref)/i.test(value), []);
 
-  const parseAndIngest = async (
+  const parseAndIngest = useCallback(async (
     rawSms: string,
     mode: "AUTO" | "MANUAL",
   ): Promise<boolean> => {
@@ -162,9 +164,9 @@ function SmsModal({
       }
     }
     return false;
-  };
+  }, [authorId, onSuccess]);
 
-  const handleAutoDetect = async () => {
+  const handleAutoDetect = useCallback(async () => {
     setLoadingAuto(true);
     setResult(null);
     setAutoStatus("Checking clipboard for a bank SMS...");
@@ -186,14 +188,14 @@ function SmsModal({
       }
 
       await parseAndIngest(clipboardText, "AUTO");
-    } catch (_) {
+    } catch {
       setAutoStatus(
         "Could not read clipboard on this device. Use manual fallback below.",
       );
     } finally {
       setLoadingAuto(false);
     }
-  };
+  }, [looksLikeTransactionSms, parseAndIngest]);
 
   const handleManualSubmit = async () => {
     const rawSms = text.trim();
@@ -209,8 +211,8 @@ function SmsModal({
     setResult(null);
     setAutoStatus(null);
     setManualOpen(false);
-    void handleAutoDetect();
-  }, [visible]);
+    handleAutoDetect();
+  }, [visible, handleAutoDetect]);
 
   return (
     <Modal
@@ -366,17 +368,19 @@ const smsS = StyleSheet.create({
 
 // ─── Rename Modal ─────────────────────────────────────────────────────────────
 
+type RenameModalProps = Readonly<{
+  tx: Transaction;
+  onClose: () => void;
+  onSaved: () => void;
+  onOpenSplit: (tx: Transaction) => void;
+}>;
+
 function RenameModal({
   tx,
   onClose,
   onSaved,
   onOpenSplit,
-}: {
-  tx: Transaction;
-  onClose: () => void;
-  onSaved: () => void;
-  onOpenSplit: (tx: Transaction) => void;
-}) {
+}: RenameModalProps) {
   const [title, setTitle] = useState(tx.title);
   const [note, setNote] = useState(tx.note || "");
   const [category, setCategory] = useState(tx.category);
@@ -407,7 +411,7 @@ function RenameModal({
       });
       onSaved();
       onClose();
-    } catch (_) {
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -585,27 +589,29 @@ function RenameModal({
   );
 }
 
+type SplitModalProps = Readonly<{
+  tx: Transaction;
+  authorId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}>;
+
 function SplitModal({
   tx,
   authorId,
   onClose,
   onSaved,
-}: {
-  tx: Transaction;
-  authorId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
+}: SplitModalProps) {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [allUsers, setAllUsers] = useState<
-    Array<{ id: string; name?: string; email: string }>
+    { id: string; name?: string; email: string }[]
   >([]);
   const [friendBalances, setFriendBalances] = useState<
-    Array<{
+    {
       userId: string;
       user: { id: string; name?: string; email: string };
       net: number;
-    }>
+    }[]
   >([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
     tx.groupId ?? null,
@@ -650,7 +656,7 @@ function SplitModal({
     return () => {
       mounted = false;
     };
-  }, [authorId]);
+  }, [authorId, selectedGroupId]);
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) || null;
   const groupMembers =
@@ -664,7 +670,7 @@ function SplitModal({
   const friendIds = new Set(friendOptions.map((person) => person.id));
   const userOptions = allUsers.filter((person) => !friendIds.has(person.id));
   const peopleOptions = [
-      ...friendOptions.map((person) => ({
+    ...friendOptions.map((person) => ({
       ...person,
       source: "Friend" as const,
       hint: formatBalanceHint(person.net, tx.currency),
@@ -714,7 +720,7 @@ function SplitModal({
       );
       onSaved();
       onClose();
-    } catch (_) {
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -933,19 +939,21 @@ function SplitModal({
   );
 }
 
+type CreateTransactionModalProps = Readonly<{
+  visible: boolean;
+  authorId: string;
+  defaultCurrency: string;
+  onClose: () => void;
+  onSaved: () => void;
+}>;
+
 function CreateTransactionModal({
   visible,
   authorId,
   defaultCurrency,
   onClose,
   onSaved,
-}: {
-  visible: boolean;
-  authorId: string;
-  defaultCurrency: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
+}: CreateTransactionModalProps) {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<"EXPENSE" | "INCOME" | "TRANSFER">("EXPENSE");
@@ -1098,7 +1106,7 @@ export default function ExploreScreen() {
       }
       const res = await getTransactions(user.id, opts);
       setTransactions(res.transactions);
-    } catch (_) {
+    } catch {
     } finally {
       setLoading(false);
     }
@@ -1349,7 +1357,7 @@ export default function ExploreScreen() {
 
 // ─── Transaction Card (detailed) ──────────────────────────────────────────────
 
-function TxCard({ tx }: { tx: Transaction }) {
+function TxCard({ tx }: Readonly<{ tx: Transaction }>) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createTxCardStyles(colors), [colors]);
   const isCredit = tx.type === "INCOME";

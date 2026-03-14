@@ -4,6 +4,8 @@ import { useAppTheme } from "@/src/context/ThemeContext";
 import { Transaction } from "../api/transaction.api";
 import { formatCurrency } from "@/src/lib/currency";
 
+type TransactionCardProps = Readonly<{ transaction: Transaction }>;
+
 // Simple category to icon/color matcher
 const getCategoryIcon = (category: string) => {
   switch (category.toLowerCase()) {
@@ -22,7 +24,7 @@ const getCategoryIcon = (category: string) => {
   }
 };
 
-export const TransactionCard: React.FC<{ transaction: Transaction }> = ({
+export const TransactionCard: React.FC<TransactionCardProps> = ({
   transaction,
 }) => {
   const { colors } = useAppTheme();

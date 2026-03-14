@@ -1,14 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -55,7 +54,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async (silent = false) => {
+  const load = useCallback(async (silent = false) => {
     if (!user) return;
     try {
       if (!silent) setLoading(true);
@@ -106,11 +105,11 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [fadeAnim, user]);
 
   useEffect(() => {
-    void load();
-  }, [user]);
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -146,7 +145,7 @@ export default function HomeScreen() {
             refreshing={refreshing}
             onRefresh={() => {
               setRefreshing(true);
-              void load(true);
+              load(true);
             }}
             tintColor={colors.accent}
           />
@@ -216,19 +215,21 @@ export default function HomeScreen() {
   );
 }
 
+type ActionProps = Readonly<{
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  color: string;
+  styles: ReturnType<typeof createStyles>;
+}>;
+
 function Action({
   icon,
   label,
   onPress,
   color,
   styles,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-  color: string;
-  styles: ReturnType<typeof createStyles>;
-}) {
+}: ActionProps) {
   return (
     <Pressable style={styles.action} onPress={onPress}>
       <Ionicons name={icon} size={22} color={color} />
