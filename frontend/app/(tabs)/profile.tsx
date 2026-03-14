@@ -1,11 +1,11 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
   Pressable,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +14,7 @@ import {
 } from "react-native";
 
 import { useAuth } from "@/src/context/AuthContext";
-import { createBudget, getBudgets } from "@/src/features/budget";
+import { createBudget, getBudgets, updateBudget } from "@/src/features/budget";
 import { CategoryItem, createCategory, getCategories } from "@/src/features/category";
 
 const BG_START = "#0A0A0A";
@@ -27,16 +27,35 @@ const PURPLE = "#B026FF"; // Electric Purple
 const TEXT_PRIMARY = "#FFFFFF";
 const TEXT_SECONDARY = "#A1A1AA";
 const RED_ACCENT = "#FF3366";
+const BUILT_IN_BUDGET_CATEGORIES = [
+  "Food & Groceries",
+  "Subscriptions",
+  "Transport",
+  "Salary",
+  "Shopping",
+  "Healthcare",
+  "Housing",
+  "Utilities",
+  "Investments",
+  "General",
+];
+
+type BudgetCategoryOption = {
+  key: string;
+  name: string;
+  categoryId: string | null;
+};
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
-  const router = useRouter();
   const [categories, setCategories] = useState<any[]>([]);
   const [budgets, setBudgets] = useState<any[]>([]);
   const [categoryName, setCategoryName] = useState("");
   const [budgetName, setBudgetName] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
   const [selectedBudgetCategoryId, setSelectedBudgetCategoryId] = useState<string | null>(null);
+  const [selectedBudgetCategoryName, setSelectedBudgetCategoryName] = useState<string | null>(null);
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -77,6 +96,41 @@ export default function ProfileScreen() {
   const selectedBudgetCategory = categories.find(
     (category: CategoryItem) => category.id === selectedBudgetCategoryId,
   );
+  const budgetCategoryOptions: BudgetCategoryOption[] = [
+    ...BUILT_IN_BUDGET_CATEGORIES.map((name) => ({
+      key: `system-${name}`,
+      name,
+      categoryId: null,
+    })),
+    ...categories.map((category: CategoryItem) => ({
+      key: category.id,
+      name: category.name,
+      categoryId: category.id,
+    })),
+  ];
+  const selectedBudgetOption = budgetCategoryOptions.find(
+    (option) =>
+      option.categoryId === selectedBudgetCategoryId
+      && option.name === selectedBudgetCategoryName,
+  ) ?? budgetCategoryOptions.find((option) => option.name === selectedBudgetCategoryName);
+
+  const resetBudgetForm = () => {
+    setBudgetName("");
+    setBudgetAmount("");
+    setSelectedBudgetCategoryId(null);
+    setSelectedBudgetCategoryName(null);
+    setEditingBudgetId(null);
+  };
+
+  const startEditingBudget = (budget: any) => {
+    setEditingBudgetId(budget.id);
+    setBudgetName(budget.name);
+    setBudgetAmount(String(budget.amount));
+    setSelectedBudgetCategoryId(budget.category?.id ?? null);
+    setSelectedBudgetCategoryName(
+      budget.category?.name ?? budget.categoryLabel ?? null,
+    );
+  };
 
   if (!user) return null;
 
@@ -186,78 +240,100 @@ export default function ProfileScreen() {
               value={budgetAmount}
               onChangeText={setBudgetAmount}
             />
-            {categories.length > 0 && (
-              <View style={styles.selectorGroup}>
-                <Text style={styles.selectorLabel}>Track Against Category</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.selectorRow}
-                >
-                  {categories.map((category: CategoryItem) => {
-                    const selected = selectedBudgetCategoryId === category.id;
-                    return (
-                      <Pressable
-                        key={category.id}
-                        style={[
-                          styles.selectorChip,
-                          selected && styles.selectorChipActive,
-                        ]}
-                        onPress={() =>
-                          setSelectedBudgetCategoryId((current) =>
-                            current === category.id ? null : category.id,
-                          )
+            <View style={styles.selectorGroup}>
+              <Text style={styles.selectorLabel}>Sync With Expenditure Category</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.selectorRow}
+              >
+                {budgetCategoryOptions.map((option) => {
+                  const selected =
+                    selectedBudgetCategoryName === option.name
+                    && selectedBudgetCategoryId === option.categoryId;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[
+                        styles.selectorChip,
+                        selected && styles.selectorChipActive,
+                      ]}
+                      onPress={() => {
+                        if (selected) {
+                          setSelectedBudgetCategoryId(null);
+                          setSelectedBudgetCategoryName(null);
+                          return;
                         }
+                        setSelectedBudgetCategoryId(option.categoryId);
+                        setSelectedBudgetCategoryName(option.name);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.selectorChipText,
+                          selected && styles.selectorChipTextActive,
+                        ]}
                       >
-                        <Text
-                          style={[
-                            styles.selectorChipText,
-                            selected && styles.selectorChipTextActive,
-                          ]}
-                        >
-                          {category.icon ? `${category.icon} ` : ""}
-                          {category.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-                <Text style={styles.selectorHint}>
-                  Choose a category so this budget stays synced with that user's spending.
-                </Text>
-              </View>
-            )}
+                        {option.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <Text style={styles.selectorHint}>
+                {selectedBudgetOption
+                  ? `This budget will sync with ${selectedBudgetOption.name}. Existing budgets can be edited below.`
+                  : "Choose the category this budget should follow. Existing budgets can be edited below."}
+              </Text>
+            </View>
             <Pressable
               style={({ pressed }) => [
                 styles.primaryBtn,
                 pressed && styles.pressed,
               ]}
               onPress={async () => {
-                const amount = Number.parseFloat(budgetAmount);
-                if (Number.isNaN(amount) || amount <= 0) return;
-                const fallbackCategory = categories.find(
-                  (category: CategoryItem) =>
-                    category.name.toLowerCase() === budgetName.trim().toLowerCase(),
-                );
-                const resolvedCategoryId =
-                  selectedBudgetCategoryId || fallbackCategory?.id;
-                const resolvedName =
-                  budgetName.trim()
-                  || (selectedBudgetCategory
-                    ? `${selectedBudgetCategory.name} Budget`
-                    : "");
-                if (!resolvedName) return;
-                await createBudget({
-                  userId: user.id,
-                  categoryId: resolvedCategoryId || undefined,
-                  name: resolvedName,
-                  amount,
-                  monthStart: new Date().toISOString(),
-                });
-                setBudgetName("");
-                setBudgetAmount("");
-                setSelectedBudgetCategoryId(null);
-                await load();
+                try {
+                  const amount = Number.parseFloat(budgetAmount);
+                  if (Number.isNaN(amount) || amount <= 0) return;
+                  const fallbackCategory = budgetCategoryOptions.find(
+                    (option) =>
+                      option.name.toLowerCase() === budgetName.trim().toLowerCase(),
+                  );
+                  const resolvedCategoryId =
+                    selectedBudgetCategoryId ?? fallbackCategory?.categoryId ?? null;
+                  const resolvedCategoryLabel =
+                    selectedBudgetCategoryName ?? fallbackCategory?.name ?? null;
+                  const resolvedName =
+                    budgetName.trim()
+                    || resolvedCategoryLabel
+                    || (selectedBudgetCategory
+                      ? `${selectedBudgetCategory.name} Budget`
+                      : "");
+                  if (!resolvedName) return;
+                  if (editingBudgetId) {
+                    await updateBudget(editingBudgetId, {
+                      categoryId: resolvedCategoryId,
+                      categoryLabel: resolvedCategoryLabel,
+                      name: resolvedName,
+                      amount,
+                    });
+                    Alert.alert("Budget updated", "This budget will now sync with the selected expenditure category.");
+                  } else {
+                    await createBudget({
+                      userId: user.id,
+                      categoryId: resolvedCategoryId,
+                      categoryLabel: resolvedCategoryLabel,
+                      name: resolvedName,
+                      amount,
+                      monthStart: new Date().toISOString(),
+                    });
+                  }
+                  resetBudgetForm();
+                  await load();
+                } catch (error) {
+                  console.error("Failed to save budget", error);
+                  Alert.alert("Could not save budget", "Please try again.");
+                }
               }}
             >
               <LinearGradient
@@ -266,9 +342,19 @@ export default function ProfileScreen() {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.primaryBtnText}>Create Budget</Text>
+                <Text style={styles.primaryBtnText}>
+                  {editingBudgetId ? "Save Budget Changes" : "Create Budget"}
+                </Text>
               </LinearGradient>
             </Pressable>
+            {editingBudgetId && (
+              <Pressable
+                style={styles.secondaryBtn}
+                onPress={resetBudgetForm}
+              >
+                <Text style={styles.secondaryBtnText}>Cancel Editing</Text>
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.budgetList}>
@@ -281,7 +367,7 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
                 <Text style={styles.budgetMeta}>
-                  {budget.category?.name || "Unlinked budget"} • Spent ₹{(budget.spent || 0).toLocaleString("en-IN")} • Remaining ₹{(budget.remaining || 0).toLocaleString("en-IN")}
+                  {budget.category?.name || budget.categoryLabel || "Unlinked budget"} • Spent ₹{(budget.spent || 0).toLocaleString("en-IN")} • Remaining ₹{(budget.remaining || 0).toLocaleString("en-IN")}
                 </Text>
                 <View style={styles.progressBarBg}>
                   <View
@@ -294,6 +380,12 @@ export default function ProfileScreen() {
                 <Text style={styles.budgetUsage}>
                   {budget.usage ? budget.usage.toFixed(1) : 0}% used
                 </Text>
+                <Pressable
+                  style={styles.budgetEditBtn}
+                  onPress={() => startEditingBudget(budget)}
+                >
+                  <Text style={styles.budgetEditBtnText}>Edit Budget Sync</Text>
+                </Pressable>
               </View>
             ))}
             {budgets.length === 0 && !loading && (
@@ -540,6 +632,19 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.5,
   },
+  secondaryBtn: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  secondaryBtnText: {
+    color: TEXT_PRIMARY,
+    fontSize: 14,
+    fontWeight: "700",
+  },
   budgetList: {
     gap: 16,
   },
@@ -582,6 +687,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 6,
     textAlign: "right",
+  },
+  budgetEditBtn: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  budgetEditBtnText: {
+    color: ACCENT,
+    fontSize: 12,
+    fontWeight: "700",
   },
   logoutBtn: {
     backgroundColor: "rgba(255, 51, 102, 0.1)",

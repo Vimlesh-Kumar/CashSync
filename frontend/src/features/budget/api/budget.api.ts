@@ -18,6 +18,7 @@ export interface BudgetItem {
     id: string;
     userId: string;
     name: string;
+    categoryLabel?: string | null;
     amount: number;
     spent: number;
     remaining: number;
@@ -37,9 +38,19 @@ export const getBudgets = (userId: string, month?: string): Promise<BudgetItem[]
 
 export const createBudget = (data: {
     userId: string;
-    categoryId?: string;
+    categoryId?: string | null;
+    categoryLabel?: string | null;
     name: string;
     amount: number;
     currency?: string;
     monthStart: string;
 }) => req('/budgets', { method: 'POST', body: JSON.stringify(data) });
+
+export const updateBudget = (id: string, data: {
+    categoryId?: string | null;
+    categoryLabel?: string | null;
+    name?: string;
+    amount?: number;
+    currency?: string;
+    monthStart?: string;
+}) => req(`/budgets/${id}`, { method: 'PUT', body: JSON.stringify(data) });

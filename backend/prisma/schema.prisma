@@ -199,6 +199,7 @@ model Budget {
   id          String   @id @default(uuid())
   userId      String
   categoryId  String?
+  categoryLabel String?
   name        String
   amount      Float
   spent       Float    @default(0.0)
