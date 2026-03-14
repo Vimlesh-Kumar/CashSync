@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -10,53 +11,63 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/src/context/AuthContext';
+import { useAppTheme } from '@/src/context/ThemeContext';
 import { getBudgets } from '@/src/features/budget';
 import { getStats, TransactionStats } from '@/src/features/transaction';
 
-const BG = '#0D1117';
-const CARD_BG = '#161D2C';
-const BORDER = '#1E2D46';
-const ACCENT = '#4F8EF7';
-const GREEN = '#34D399';
-const RED = '#F87171';
-const TEXT_DIM = '#8B9AB3';
-
 export default function InsightsScreen() {
   const { user } = useAuth();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [stats, setStats] = useState<TransactionStats | null>(null);
   const [budgets, setBudgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!user) return;
+    setLoading(true);
 
-    Promise.all([getStats(user.id), getBudgets(user.id)])
-      .then(([statsRes, budgetRes]) => {
-        setStats(statsRes);
-        setBudgets(budgetRes);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const [statsRes, budgetRes] = await Promise.all([
+        getStats(user.id),
+        getBudgets(user.id),
+      ]);
+      setStats(statsRes);
+      setBudgets(budgetRes);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   if (loading) {
     return (
-      <View style={[styles.center, { backgroundColor: BG }]}> 
-        <ActivityIndicator color={ACCENT} />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <LinearGradient colors={[BG, '#111827', BG]} style={StyleSheet.absoluteFill} />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.heading}>Insights</Text>
 
         <View style={styles.grid}>
-          <MetricCard title="Income" value={`₹${(stats?.income || 0).toLocaleString('en-IN')}`} color={GREEN} />
-          <MetricCard title="Expense" value={`₹${(stats?.expense || 0).toLocaleString('en-IN')}`} color={RED} />
-          <MetricCard title="Net" value={`₹${(stats?.net || 0).toLocaleString('en-IN')}`} color={ACCENT} />
-          <MetricCard title="Budgets" value={String(budgets.length)} color={TEXT_DIM} />
+          <MetricCard title="Income" value={`₹${(stats?.income || 0).toLocaleString('en-IN')}`} color={colors.success} styles={styles} />
+          <MetricCard title="Expense" value={`₹${(stats?.expense || 0).toLocaleString('en-IN')}`} color={colors.danger} styles={styles} />
+          <MetricCard title="Net" value={`₹${(stats?.net || 0).toLocaleString('en-IN')}`} color={colors.accent} styles={styles} />
+          <MetricCard title="Budgets" value={String(budgets.length)} color={colors.textMuted} styles={styles} />
         </View>
 
         <View style={styles.card}>
@@ -72,12 +83,12 @@ export default function InsightsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Budget Alerts</Text>
           {budgets.length === 0 ? (
-            <Text style={{ color: TEXT_DIM }}>No budgets configured yet.</Text>
+            <Text style={{ color: colors.textMuted }}>No budgets configured yet.</Text>
           ) : (
             budgets.map((budget) => (
               <View key={budget.id} style={styles.row}>
                 <Text style={styles.rowLabel}>{budget.name}</Text>
-                <Text style={[styles.rowValue, { color: budget.alert ? RED : GREEN }]}>
+                <Text style={[styles.rowValue, { color: budget.alert ? colors.danger : colors.success }]}>
                   {budget.usage.toFixed(1)}%
                 </Text>
               </View>
@@ -93,10 +104,12 @@ function MetricCard({
   title,
   value,
   color,
+  styles,
 }: {
   title: string;
   value: string;
   color: string;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
     <View style={styles.metricCard}>
@@ -106,7 +119,7 @@ function MetricCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) => StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: {
     paddingHorizontal: 18,
@@ -117,35 +130,35 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     gap: 12,
   },
-  heading: { color: '#fff', fontSize: 27, fontWeight: '800', marginBottom: 8 },
+  heading: { color: colors.text, fontSize: 27, fontWeight: '800', marginBottom: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   metricCard: {
     width: '48%',
-    backgroundColor: CARD_BG,
-    borderColor: BORDER,
+    backgroundColor: colors.card,
+    borderColor: colors.border,
     borderWidth: 1,
     borderRadius: 14,
     padding: 14,
   },
-  metricTitle: { color: TEXT_DIM, fontSize: 12, marginBottom: 6 },
+  metricTitle: { color: colors.textMuted, fontSize: 12, marginBottom: 6 },
   metricValue: { fontSize: 19, fontWeight: '800' },
   card: {
-    backgroundColor: CARD_BG,
-    borderColor: BORDER,
+    backgroundColor: colors.card,
+    borderColor: colors.border,
     borderWidth: 1,
     borderRadius: 14,
     padding: 14,
     gap: 8,
   },
-  cardTitle: { color: '#fff', fontWeight: '700', fontSize: 16, marginBottom: 2 },
+  cardTitle: { color: colors.text, fontWeight: '700', fontSize: 16, marginBottom: 2 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: BORDER + '80',
+    borderBottomColor: colors.border + '80',
     paddingVertical: 8,
   },
-  rowLabel: { color: TEXT_DIM, fontWeight: '600' },
-  rowValue: { color: '#fff', fontWeight: '700' },
+  rowLabel: { color: colors.textMuted, fontWeight: '600' },
+  rowValue: { color: colors.text, fontWeight: '700' },
 });

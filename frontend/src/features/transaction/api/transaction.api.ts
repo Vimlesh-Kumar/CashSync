@@ -38,6 +38,17 @@ export interface TransactionStats {
     topCategories: Array<{ name: string; total: number }>;
 }
 
+export interface FriendBalanceSummary {
+    userId: string;
+    user: { id: string; name?: string; email: string; avatarUrl?: string };
+    youOwe: number;
+    owesYou: number;
+    net: number;
+    splitCount: number;
+    groups: string[];
+    lastActivityAt?: string | null;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function req<T>(url: string, options?: RequestInit): Promise<T> {
@@ -124,6 +135,9 @@ export const settleSplit = async (splitId: string): Promise<SplitMember> =>
 
 export const getDebtSummary = async (userId: string): Promise<{ splits: any[]; totalOwed: number }> =>
     req(`/transactions/debts/${userId}`);
+
+export const getFriendBalances = async (userId: string): Promise<FriendBalanceSummary[]> =>
+    req(`/transactions/friends/${userId}`);
 
 // ─── Category Rules ───────────────────────────────────────────────────────────
 

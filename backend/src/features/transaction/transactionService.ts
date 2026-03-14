@@ -241,6 +241,71 @@ export const transactionService = {
         return { splits, totalOwed };
     },
 
+    async getFriendBalances(userId: string) {
+        const rows = await transactionRepository.findFriendBalanceRows(userId);
+        const balanceByUser = new Map<string, {
+            user: { id: string; name?: string | null; email: string; avatarUrl?: string | null };
+            youOwe: number;
+            owesYou: number;
+            splitCount: number;
+            groups: Set<string>;
+            lastActivityAt?: Date;
+        }>();
+
+        for (const row of rows) {
+            const outstanding = round2(row.amountOwed - row.amountPaid);
+            if (outstanding <= 0) continue;
+
+            const counterparty =
+                row.transaction.authorId === userId
+                    ? row.user
+                    : row.transaction.author;
+
+            if (!counterparty || counterparty.id === userId) continue;
+
+            const summary = balanceByUser.get(counterparty.id) ?? {
+                user: counterparty,
+                youOwe: 0,
+                owesYou: 0,
+                splitCount: 0,
+                groups: new Set<string>(),
+                lastActivityAt: undefined,
+            };
+
+            if (row.transaction.authorId === userId) {
+                summary.owesYou = round2(summary.owesYou + outstanding);
+            } else {
+                summary.youOwe = round2(summary.youOwe + outstanding);
+            }
+
+            summary.splitCount += 1;
+
+            if (row.transaction.group?.name) {
+                summary.groups.add(row.transaction.group.name);
+            }
+
+            const txDate = new Date(row.transaction.date);
+            if (!summary.lastActivityAt || txDate > summary.lastActivityAt) {
+                summary.lastActivityAt = txDate;
+            }
+
+            balanceByUser.set(counterparty.id, summary);
+        }
+
+        return Array.from(balanceByUser.values())
+            .map((summary) => ({
+                userId: summary.user.id,
+                user: summary.user,
+                youOwe: summary.youOwe,
+                owesYou: summary.owesYou,
+                net: round2(summary.owesYou - summary.youOwe),
+                splitCount: summary.splitCount,
+                groups: Array.from(summary.groups),
+                lastActivityAt: summary.lastActivityAt ?? null,
+            }))
+            .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
+    },
+
     async getCategoryRules(userId: string) {
         return transactionRepository.findCategoryRules(userId);
     },

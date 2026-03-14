@@ -1,8 +1,9 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -13,122 +14,152 @@ import {
 } from "react-native";
 
 import { useAuth } from "@/src/context/AuthContext";
-import { createBudget, getBudgets } from "@/src/features/budget";
-import { createCategory, getCategories } from "@/src/features/category";
+import { ThemePreference, useAppTheme } from "@/src/context/ThemeContext";
+import { createBudget, getBudgets, updateBudget } from "@/src/features/budget";
+import { CategoryItem, createCategory, getCategories } from "@/src/features/category";
 
-const BG_START = "#0A0A0A";
-const BG_END = "#121212";
-const CARD_BG = "rgba(255, 255, 255, 0.03)";
-const CARD_BORDER = "rgba(255, 255, 255, 0.08)";
-const ACCENT = "#39FF14"; // Neon Green
-const ACCENT_GLOW = "rgba(57, 255, 20, 0.2)";
-const PURPLE = "#B026FF"; // Electric Purple
-const TEXT_PRIMARY = "#FFFFFF";
-const TEXT_SECONDARY = "#A1A1AA";
-const RED_ACCENT = "#FF3366";
+const BUILT_IN_BUDGET_CATEGORIES = [
+  "Food & Groceries",
+  "Subscriptions",
+  "Transport",
+  "Salary",
+  "Shopping",
+  "Healthcare",
+  "Housing",
+  "Utilities",
+  "Investments",
+  "General",
+];
+
+type BudgetCategoryOption = {
+  key: string;
+  name: string;
+  categoryId: string | null;
+};
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
-  const router = useRouter();
-  const [categories, setCategories] = useState<any[]>([]);
+  const { colors, preference, setPreference } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [budgets, setBudgets] = useState<any[]>([]);
   const [categoryName, setCategoryName] = useState("");
   const [budgetName, setBudgetName] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
+  const [selectedBudgetCategoryId, setSelectedBudgetCategoryId] = useState<string | null>(null);
+  const [selectedBudgetCategoryName, setSelectedBudgetCategoryName] = useState<string | null>(null);
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const [cats, buds] = await Promise.all([
-        getCategories(user.id),
-        getBudgets(user.id),
-      ]);
+      const [cats, buds] = await Promise.all([getCategories(user.id), getBudgets(user.id)]);
       setCategories(cats);
       setBudgets(buds);
-    } catch (e) {
-      console.error(e);
     } finally {
       setLoading(false);
     }
   }, [user]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch (e) {
-      console.error("Failed to sign out", e);
-    }
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  const budgetCategoryOptions: BudgetCategoryOption[] = [
+    ...BUILT_IN_BUDGET_CATEGORIES.map((name) => ({
+      key: `system-${name}`,
+      name,
+      categoryId: null,
+    })),
+    ...categories.map((category) => ({
+      key: category.id,
+      name: category.name,
+      categoryId: category.id,
+    })),
+  ];
+
+  const selectedBudgetOption =
+    budgetCategoryOptions.find(
+      (option) => option.categoryId === selectedBudgetCategoryId && option.name === selectedBudgetCategoryName,
+    ) || budgetCategoryOptions.find((option) => option.name === selectedBudgetCategoryName);
+
+  const resetBudgetForm = () => {
+    setBudgetName("");
+    setBudgetAmount("");
+    setSelectedBudgetCategoryId(null);
+    setSelectedBudgetCategoryName(null);
+    setEditingBudgetId(null);
+  };
+
+  const startEditingBudget = (budget: any) => {
+    setEditingBudgetId(budget.id);
+    setBudgetName(budget.name);
+    setBudgetAmount(String(budget.amount));
+    setSelectedBudgetCategoryId(budget.category?.id ?? null);
+    setSelectedBudgetCategoryName(budget.category?.name ?? budget.categoryLabel ?? null);
   };
 
   if (!user) return null;
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[BG_START, BG_END]}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Decorative Blur Orbs */}
-      <View style={[styles.orb, styles.orbTopLeft]} />
-      <View style={[styles.orb, styles.orbBottomRight]} />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header / Avatar Section */}
-        <View style={styles.headerContainer}>
-          <View style={styles.avatarWrapper}>
-            <LinearGradient
-              colors={[ACCENT, PURPLE]}
-              style={styles.avatarGradient}
-            >
-              <View style={styles.avatarInner}>
-                <Text style={styles.avatarText}>
-                  {user.name ? user.name.charAt(0).toUpperCase() : "U"}
-                </Text>
-              </View>
-            </LinearGradient>
+      <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{(user.name?.charAt(0) || "U").toUpperCase()}</Text>
           </View>
           <Text style={styles.userName}>{user.name || "CashSync User"}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>PRO MEMBER</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Theme</Text>
+          <Text style={styles.helperText}>Choose how CashSync looks on this device.</Text>
+          <View style={styles.selectorRow}>
+            {(["system", "light", "dark"] as ThemePreference[]).map((option) => {
+              const selected = preference === option;
+              return (
+                <Pressable
+                  key={option}
+                  style={[styles.chip, selected && styles.chipActive]}
+                  onPress={() => {
+                    void setPreference(option);
+                  }}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextActive]}>
+                    {option === "system" ? "System" : option === "light" ? "Light" : "Dark"}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
-        {/* Categories Section */}
-        <View style={styles.glassCard}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Custom Categories</Text>
-          </View>
-
-          <View style={styles.inputRow}>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Custom Categories</Text>
+          <View style={styles.row}>
             <TextInput
               style={styles.input}
               placeholder="E.g. Entertainment"
-              placeholderTextColor={TEXT_SECONDARY}
+              placeholderTextColor={colors.textMuted}
               value={categoryName}
               onChangeText={setCategoryName}
             />
             <Pressable
-              style={({ pressed }) => [
-                styles.actionBtn,
-                pressed && styles.pressed,
-              ]}
+              style={styles.actionBtn}
               onPress={async () => {
                 if (!categoryName.trim()) return;
-                await createCategory({
-                  userId: user.id,
-                  name: categoryName.trim(),
-                });
+                await createCategory({ userId: user.id, name: categoryName.trim() });
                 setCategoryName("");
                 await load();
               }}
@@ -136,114 +167,141 @@ export default function ProfileScreen() {
               <Text style={styles.actionBtnText}>Add</Text>
             </Pressable>
           </View>
-
-          <View style={styles.listContainer}>
-            {categories.map((cat, i) => (
-              <View key={cat.id || i} style={styles.pill}>
-                <Text style={styles.pillText}>
-                  {cat.icon ? `${cat.icon} ` : ""}
-                  {cat.name}
-                </Text>
+          <View style={styles.wrapRow}>
+            {categories.map((cat) => (
+              <View key={cat.id} style={styles.pill}>
+                <Text style={styles.pillText}>{cat.name}</Text>
               </View>
             ))}
-            {categories.length === 0 && !loading && (
-              <Text style={styles.emptyText}>No custom categories yet.</Text>
-            )}
           </View>
         </View>
 
-        {/* Budgets Section */}
-        <View style={styles.glassCard}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Monthly Budget</Text>
-          </View>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Monthly Budget</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Budget Name"
+            placeholderTextColor={colors.textMuted}
+            value={budgetName}
+            onChangeText={setBudgetName}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Amount (₹)"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="numeric"
+            value={budgetAmount}
+            onChangeText={setBudgetAmount}
+          />
+          <Text style={styles.helperText}>Sync With Expenditure Category</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
+            {budgetCategoryOptions.map((option) => {
+              const selected =
+                selectedBudgetCategoryName === option.name && selectedBudgetCategoryId === option.categoryId;
+              return (
+                <Pressable
+                  key={option.key}
+                  style={[styles.chip, selected && styles.chipActive]}
+                  onPress={() => {
+                    if (selected) {
+                      setSelectedBudgetCategoryId(null);
+                      setSelectedBudgetCategoryName(null);
+                      return;
+                    }
+                    setSelectedBudgetCategoryId(option.categoryId);
+                    setSelectedBudgetCategoryName(option.name);
+                  }}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextActive]}>{option.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
-          <View style={styles.budgetForm}>
-            <TextInput
-              style={styles.input}
-              placeholder="Budget Name (e.g. Utilities)"
-              placeholderTextColor={TEXT_SECONDARY}
-              value={budgetName}
-              onChangeText={setBudgetName}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Amount (₹)"
-              placeholderTextColor={TEXT_SECONDARY}
-              keyboardType="numeric"
-              value={budgetAmount}
-              onChangeText={setBudgetAmount}
-            />
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                pressed && styles.pressed,
-              ]}
-              onPress={async () => {
+          <Text style={styles.helperText}>
+            {selectedBudgetOption
+              ? `This budget will sync with ${selectedBudgetOption.name}.`
+              : "Choose the category this budget should follow."}
+          </Text>
+
+          <Pressable
+            style={styles.primaryBtn}
+            onPress={async () => {
+              try {
                 const amount = Number.parseFloat(budgetAmount);
-                if (!budgetName.trim() || Number.isNaN(amount) || amount <= 0)
-                  return;
-                await createBudget({
-                  userId: user.id,
-                  name: budgetName.trim(),
-                  amount,
-                  monthStart: new Date().toISOString(),
-                });
-                setBudgetName("");
-                setBudgetAmount("");
-                await load();
-              }}
-            >
-              <LinearGradient
-                colors={[ACCENT, "#28C90E"]}
-                style={styles.gradientBtn}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.primaryBtnText}>Create Budget</Text>
-              </LinearGradient>
-            </Pressable>
-          </View>
+                if (Number.isNaN(amount) || amount <= 0) return;
+                const fallbackCategory = budgetCategoryOptions.find(
+                  (option) => option.name.toLowerCase() === budgetName.trim().toLowerCase(),
+                );
+                const resolvedCategoryId = selectedBudgetCategoryId ?? fallbackCategory?.categoryId ?? null;
+                const resolvedCategoryLabel = selectedBudgetCategoryName ?? fallbackCategory?.name ?? null;
+                const resolvedName = budgetName.trim() || resolvedCategoryLabel || "Budget";
 
-          <View style={styles.budgetList}>
-            {budgets.map((budget, i) => (
-              <View key={budget.id || i} style={styles.budgetItem}>
-                <View style={styles.budgetDetails}>
+                if (editingBudgetId) {
+                  await updateBudget(editingBudgetId, {
+                    categoryId: resolvedCategoryId,
+                    categoryLabel: resolvedCategoryLabel,
+                    name: resolvedName,
+                    amount,
+                  });
+                  Alert.alert("Budget updated", "Budget sync was updated successfully.");
+                } else {
+                  await createBudget({
+                    userId: user.id,
+                    categoryId: resolvedCategoryId,
+                    categoryLabel: resolvedCategoryLabel,
+                    name: resolvedName,
+                    amount,
+                    monthStart: new Date().toISOString(),
+                  });
+                }
+                resetBudgetForm();
+                await load();
+              } catch (error) {
+                console.error("Failed to save budget", error);
+                Alert.alert("Could not save budget", "Please try again.");
+              }
+            }}
+          >
+            <Text style={styles.primaryBtnText}>{editingBudgetId ? "Save Budget Changes" : "Create Budget"}</Text>
+          </Pressable>
+
+          {editingBudgetId && (
+            <Pressable style={styles.secondaryBtn} onPress={resetBudgetForm}>
+              <Text style={styles.secondaryBtnText}>Cancel Editing</Text>
+            </Pressable>
+          )}
+
+          <View style={{ gap: 12, marginTop: 10 }}>
+            {budgets.map((budget) => (
+              <View key={budget.id} style={styles.budgetItem}>
+                <View style={styles.budgetTop}>
                   <Text style={styles.budgetName}>{budget.name}</Text>
-                  <Text style={styles.budgetAmount}>
-                    ₹{budget.amount.toLocaleString("en-IN")}
-                  </Text>
+                  <Text style={styles.budgetAmount}>₹{budget.amount.toLocaleString("en-IN")}</Text>
                 </View>
-                <View style={styles.progressBarBg}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      { width: `${Math.min(budget.usage || 0, 100)}%` },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.budgetUsage}>
-                  {budget.usage ? budget.usage.toFixed(1) : 0}% used
+                <Text style={styles.budgetMeta}>
+                  {budget.category?.name || budget.categoryLabel || "Unlinked"} • Spent ₹
+                  {(budget.spent || 0).toLocaleString("en-IN")} • Remaining ₹
+                  {(budget.remaining || 0).toLocaleString("en-IN")}
                 </Text>
+                <View style={styles.progressBg}>
+                  <View style={[styles.progressFill, { width: `${Math.min(budget.usage || 0, 100)}%` }]} />
+                </View>
+                <Pressable style={styles.editBtn} onPress={() => startEditingBudget(budget)}>
+                  <Text style={styles.editBtnText}>Edit Budget Sync</Text>
+                </Pressable>
               </View>
             ))}
-            {budgets.length === 0 && !loading && (
-              <Text style={styles.emptyText}>No budgets defined.</Text>
-            )}
           </View>
         </View>
 
-        {/* Logout Button */}
-        <Pressable
-          style={({ pressed }) => [styles.logoutBtn, pressed && styles.pressed]}
-          onPress={handleSignOut}
-        >
-          <Text style={styles.logoutBtnText}>Sign Out completely</Text>
+        <Pressable style={styles.logoutBtn} onPress={signOut}>
+          <Text style={styles.logoutText}>Sign Out</Text>
         </Pressable>
 
         {loading && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator color={ACCENT} size="large" />
+            <ActivityIndicator color={colors.accent} size="large" />
           </View>
         )}
       </ScrollView>
@@ -251,252 +309,152 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BG_START,
-  },
-  orb: {
-    position: "absolute",
-    borderRadius: 999,
-    opacity: 0.15,
-    filter: "blur(60px)",
-  },
-  orbTopLeft: {
-    width: 300,
-    height: 300,
-    backgroundColor: PURPLE,
-    top: -100,
-    left: -100,
-  },
-  orbBottomRight: {
-    width: 350,
-    height: 350,
-    backgroundColor: ACCENT,
-    bottom: -150,
-    right: -100,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: Platform.OS === "web" ? 60 : 80,
-    paddingBottom: 140,
-    maxWidth: 720,
-    width: "100%",
-    alignSelf: "center",
-    gap: 24,
-  },
-  headerContainer: {
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  avatarWrapper: {
-    marginBottom: 16,
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  avatarGradient: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    padding: 3,
-  },
-  avatarInner: {
-    flex: 1,
-    backgroundColor: BG_END,
-    borderRadius: 55,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    fontSize: 44,
-    fontWeight: "800",
-    color: TEXT_PRIMARY,
-  },
-  userName: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: TEXT_PRIMARY,
-    letterSpacing: -0.5,
-  },
-  userEmail: {
-    fontSize: 15,
-    color: TEXT_SECONDARY,
-    marginTop: 4,
-  },
-  badge: {
-    marginTop: 12,
-    backgroundColor: ACCENT_GLOW,
-    borderWidth: 1,
-    borderColor: "rgba(57, 255, 20, 0.4)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  badgeText: {
-    color: ACCENT,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  glassCard: {
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    borderRadius: 24,
-    padding: 24,
-    overflow: "hidden",
-  },
-  cardHeader: {
-    marginBottom: 16,
-  },
-  cardTitle: {
-    color: TEXT_PRIMARY,
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: -0.3,
-  },
-  inputRow: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-  },
-  input: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    borderRadius: 14,
-    color: TEXT_PRIMARY,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-  },
-  actionBtn: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    justifyContent: "center",
-  },
-  actionBtnText: {
-    color: TEXT_PRIMARY,
-    fontWeight: "600",
-  },
-  listContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 16,
-  },
-  pill: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  pillText: {
-    color: TEXT_SECONDARY,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  emptyText: {
-    color: TEXT_SECONDARY,
-    fontSize: 14,
-    fontStyle: "italic",
-    marginTop: 8,
-  },
-  budgetForm: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  primaryBtn: {
-    borderRadius: 14,
-    marginTop: 6,
-    overflow: "hidden",
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  gradientBtn: {
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryBtnText: {
-    color: "#000",
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  budgetList: {
-    gap: 16,
-  },
-  budgetItem: {
-    paddingVertical: 8,
-  },
-  budgetDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  budgetName: {
-    color: TEXT_PRIMARY,
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  budgetAmount: {
-    color: TEXT_PRIMARY,
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  progressBarBg: {
-    height: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: PURPLE,
-    borderRadius: 4,
-  },
-  budgetUsage: {
-    color: TEXT_SECONDARY,
-    fontSize: 12,
-    marginTop: 6,
-    textAlign: "right",
-  },
-  logoutBtn: {
-    backgroundColor: "rgba(255, 51, 102, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 51, 102, 0.3)",
-    borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  logoutBtnText: {
-    color: RED_ACCENT,
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  pressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.98 }],
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10, 10, 10, 0.6)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 24,
-  },
-});
+const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    scroll: {
+      paddingHorizontal: 20,
+      paddingTop: Platform.OS === "web" ? 48 : 72,
+      paddingBottom: 130,
+      maxWidth: 760,
+      width: "100%",
+      alignSelf: "center",
+      gap: 16,
+    },
+    header: { alignItems: "center", marginBottom: 6 },
+    avatar: {
+      width: 84,
+      height: 84,
+      borderRadius: 42,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.accent,
+      marginBottom: 10,
+    },
+    avatarText: { color: "#fff", fontSize: 30, fontWeight: "800" },
+    userName: { color: colors.text, fontSize: 26, fontWeight: "800" },
+    userEmail: { color: colors.textMuted, marginTop: 4 },
+    card: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 16,
+      gap: 12,
+    },
+    cardTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
+    helperText: { color: colors.textMuted, fontSize: 12 },
+    selectorRow: { flexDirection: "row", gap: 8, paddingBottom: 2 },
+    chip: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+    },
+    chipActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    chipText: { color: colors.textMuted, fontWeight: "700", fontSize: 12 },
+    chipTextActive: { color: colors.accent },
+    row: { flexDirection: "row", gap: 10, alignItems: "center" },
+    input: {
+      flex: 1,
+      backgroundColor: colors.input,
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: 12,
+      color: colors.text,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 14,
+    },
+    actionBtn: {
+      backgroundColor: colors.accent,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    actionBtnText: { color: "#fff", fontWeight: "700" },
+    wrapRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    pill: {
+      backgroundColor: colors.input,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    pillText: { color: colors.textSecondary, fontSize: 12 },
+    primaryBtn: {
+      backgroundColor: colors.accent,
+      borderRadius: 12,
+      alignItems: "center",
+      paddingVertical: 13,
+      marginTop: 2,
+    },
+    primaryBtnText: { color: "#fff", fontWeight: "800" },
+    secondaryBtn: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      borderRadius: 12,
+      alignItems: "center",
+      paddingVertical: 12,
+    },
+    secondaryBtnText: { color: colors.text, fontWeight: "700" },
+    budgetItem: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 12,
+      backgroundColor: colors.input,
+    },
+    budgetTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
+    budgetName: { color: colors.text, fontWeight: "700" },
+    budgetAmount: { color: colors.text, fontWeight: "700" },
+    budgetMeta: { color: colors.textMuted, fontSize: 12 },
+    progressBg: {
+      height: 8,
+      borderRadius: 6,
+      backgroundColor: `${colors.border}AA`,
+      marginTop: 8,
+      overflow: "hidden",
+    },
+    progressFill: {
+      height: "100%",
+      backgroundColor: colors.purple,
+    },
+    editBtn: {
+      marginTop: 10,
+      alignSelf: "flex-start",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      backgroundColor: colors.accentSoft,
+    },
+    editBtnText: { color: colors.accent, fontWeight: "700", fontSize: 12 },
+    logoutBtn: {
+      backgroundColor: `${colors.danger}22`,
+      borderWidth: 1,
+      borderColor: `${colors.danger}66`,
+      borderRadius: 14,
+      alignItems: "center",
+      paddingVertical: 15,
+      marginTop: 4,
+    },
+    logoutText: { color: colors.danger, fontWeight: "800" },
+    loadingOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0, 0, 0, 0.25)",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 16,
+    },
+  });

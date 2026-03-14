@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { ZodSchema } from 'zod';
 import { budgetController } from './budgetController';
-import { budgetParamsSchema, budgetQuerySchema, createBudgetSchema } from './budgetSchema';
+import { budgetIdParamsSchema, budgetParamsSchema, budgetQuerySchema, createBudgetSchema, updateBudgetSchema } from './budgetSchema';
 
 function validateBody(schema: ZodSchema) {
   return (req: any, res: any, next: any) => {
@@ -41,5 +41,6 @@ const router = Router();
 
 router.post('/', validateBody(createBudgetSchema), budgetController.create);
 router.get('/:userId', validateParams(budgetParamsSchema), validateQuery(budgetQuerySchema), budgetController.list);
+router.put('/:id', validateParams(budgetIdParamsSchema), validateBody(updateBudgetSchema), budgetController.update);
 
 export default router;
