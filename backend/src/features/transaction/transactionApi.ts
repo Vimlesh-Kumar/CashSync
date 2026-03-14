@@ -42,6 +42,7 @@ router.post('/sms', validateBody(ingestSmsSchema), transactionController.ingestS
 router.post('/:id/splits', validateBody(addSplitsSchema), transactionController.addSplits);
 router.patch('/splits/:splitId/settle', transactionController.settleSplit);
 router.get('/debts/:userId', transactionController.getDebtSummary);
+router.get('/friends/:userId', transactionController.getFriendBalances);
 router.get('/rules/:userId', transactionController.getCategoryRules);
 router.post('/rules', validateBody(createCategoryRuleSchema), transactionController.createCategoryRule);
 router.delete('/rules/:ruleId', transactionController.deleteCategoryRule);

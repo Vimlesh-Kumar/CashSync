@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -22,6 +23,7 @@ import {
   GroupSummary,
   settleGroupDebt,
 } from '@/src/features/group';
+import { FriendBalanceSummary, getFriendBalances } from '@/src/features/transaction';
 
 const BG = '#0D1117';
 const CARD_BG = '#161D2C';
@@ -120,8 +122,10 @@ export default function GroupsScreen() {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [ledger, setLedger] = useState<GroupLedger | null>(null);
+  const [friendBalances, setFriendBalances] = useState<FriendBalanceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingLedger, setLoadingLedger] = useState(false);
+  const [loadingFriends, setLoadingFriends] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
 
@@ -158,6 +162,17 @@ export default function GroupsScreen() {
     }
   }, [selectedGroupId]);
 
+  const loadFriends = useCallback(async () => {
+    if (!user) return;
+    setLoadingFriends(true);
+    try {
+      const result = await getFriendBalances(user.id);
+      setFriendBalances(result);
+    } finally {
+      setLoadingFriends(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     loadGroups();
   }, [loadGroups]);
@@ -166,12 +181,18 @@ export default function GroupsScreen() {
     loadLedger();
   }, [loadLedger]);
 
+  useFocusEffect(
+    useCallback(() => {
+      void Promise.all([loadGroups(), loadLedger(), loadFriends()]);
+    }, [loadGroups, loadLedger, loadFriends]),
+  );
+
   const addMember = async () => {
     if (!selectedGroupId || !memberEmail.trim()) return;
     try {
       await addGroupMember(selectedGroupId, { email: memberEmail.trim() });
       setMemberEmail('');
-      await Promise.all([loadGroups(), loadLedger()]);
+      await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
     } catch {
     }
   };
@@ -180,7 +201,7 @@ export default function GroupsScreen() {
     if (!selectedGroupId) return;
     try {
       await settleGroupDebt(selectedGroupId, { fromUserId, toUserId, amount });
-      await Promise.all([loadGroups(), loadLedger()]);
+      await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
     } catch {
     }
   };
@@ -293,6 +314,38 @@ export default function GroupsScreen() {
               </View>
             );
           })}
+        </View>
+
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Friends & Balances</Text>
+          {loadingFriends ? (
+            <ActivityIndicator color={ACCENT} />
+          ) : friendBalances.length === 0 ? (
+            <Text style={{ color: TEXT_DIM, marginTop: 6 }}>
+              No friend balances yet. Split a bill and this list will show who owes whom.
+            </Text>
+          ) : (
+            friendBalances.map((friend) => (
+              <View key={friend.userId} style={s.friendRow}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={s.memberName}>{nameOf(friend.user)}</Text>
+                  <Text style={s.friendMeta}>
+                    {friend.groups.length > 0 ? friend.groups.slice(0, 2).join(' • ') : 'Direct split'} • {friend.splitCount} open split{friend.splitCount === 1 ? '' : 's'}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                  <Text style={{ color: friend.net >= 0 ? GREEN : RED, fontWeight: '800' }}>
+                    {friend.net >= 0 ? `Gets ₹${friend.net.toFixed(2)}` : `Owes ₹${Math.abs(friend.net).toFixed(2)}`}
+                  </Text>
+                  <Text style={s.friendMeta}>
+                    {friend.net >= 0
+                      ? `${nameOf(friend.user)} owes you ₹${friend.owesYou.toFixed(2)}`
+                      : `You owe ${nameOf(friend.user)} ₹${friend.youOwe.toFixed(2)}`}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -444,4 +497,13 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   memberName: { color: '#fff', fontWeight: '600' },
+  friendRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER + '66',
+    paddingVertical: 12,
+  },
+  friendMeta: { color: TEXT_DIM, fontSize: 12 },
 });

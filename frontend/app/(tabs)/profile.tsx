@@ -1,5 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,7 +15,7 @@ import {
 
 import { useAuth } from "@/src/context/AuthContext";
 import { createBudget, getBudgets } from "@/src/features/budget";
-import { createCategory, getCategories } from "@/src/features/category";
+import { CategoryItem, createCategory, getCategories } from "@/src/features/category";
 
 const BG_START = "#0A0A0A";
 const BG_END = "#121212";
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
   const [categoryName, setCategoryName] = useState("");
   const [budgetName, setBudgetName] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
+  const [selectedBudgetCategoryId, setSelectedBudgetCategoryId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -58,6 +60,12 @@ export default function ProfileScreen() {
     load();
   }, [load]);
 
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -65,6 +73,10 @@ export default function ProfileScreen() {
       console.error("Failed to sign out", e);
     }
   };
+
+  const selectedBudgetCategory = categories.find(
+    (category: CategoryItem) => category.id === selectedBudgetCategoryId,
+  );
 
   if (!user) return null;
 
@@ -174,6 +186,47 @@ export default function ProfileScreen() {
               value={budgetAmount}
               onChangeText={setBudgetAmount}
             />
+            {categories.length > 0 && (
+              <View style={styles.selectorGroup}>
+                <Text style={styles.selectorLabel}>Track Against Category</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.selectorRow}
+                >
+                  {categories.map((category: CategoryItem) => {
+                    const selected = selectedBudgetCategoryId === category.id;
+                    return (
+                      <Pressable
+                        key={category.id}
+                        style={[
+                          styles.selectorChip,
+                          selected && styles.selectorChipActive,
+                        ]}
+                        onPress={() =>
+                          setSelectedBudgetCategoryId((current) =>
+                            current === category.id ? null : category.id,
+                          )
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.selectorChipText,
+                            selected && styles.selectorChipTextActive,
+                          ]}
+                        >
+                          {category.icon ? `${category.icon} ` : ""}
+                          {category.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                <Text style={styles.selectorHint}>
+                  Choose a category so this budget stays synced with that user's spending.
+                </Text>
+              </View>
+            )}
             <Pressable
               style={({ pressed }) => [
                 styles.primaryBtn,
@@ -181,16 +234,29 @@ export default function ProfileScreen() {
               ]}
               onPress={async () => {
                 const amount = Number.parseFloat(budgetAmount);
-                if (!budgetName.trim() || Number.isNaN(amount) || amount <= 0)
-                  return;
+                if (Number.isNaN(amount) || amount <= 0) return;
+                const fallbackCategory = categories.find(
+                  (category: CategoryItem) =>
+                    category.name.toLowerCase() === budgetName.trim().toLowerCase(),
+                );
+                const resolvedCategoryId =
+                  selectedBudgetCategoryId || fallbackCategory?.id;
+                const resolvedName =
+                  budgetName.trim()
+                  || (selectedBudgetCategory
+                    ? `${selectedBudgetCategory.name} Budget`
+                    : "");
+                if (!resolvedName) return;
                 await createBudget({
                   userId: user.id,
-                  name: budgetName.trim(),
+                  categoryId: resolvedCategoryId || undefined,
+                  name: resolvedName,
                   amount,
                   monthStart: new Date().toISOString(),
                 });
                 setBudgetName("");
                 setBudgetAmount("");
+                setSelectedBudgetCategoryId(null);
                 await load();
               }}
             >
@@ -214,6 +280,9 @@ export default function ProfileScreen() {
                     ₹{budget.amount.toLocaleString("en-IN")}
                   </Text>
                 </View>
+                <Text style={styles.budgetMeta}>
+                  {budget.category?.name || "Unlinked budget"} • Spent ₹{(budget.spent || 0).toLocaleString("en-IN")} • Remaining ₹{(budget.remaining || 0).toLocaleString("en-IN")}
+                </Text>
                 <View style={styles.progressBarBg}>
                   <View
                     style={[
@@ -414,6 +483,42 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 24,
   },
+  selectorGroup: {
+    gap: 8,
+  },
+  selectorLabel: {
+    color: TEXT_PRIMARY,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  selectorRow: {
+    gap: 8,
+    paddingBottom: 4,
+  },
+  selectorChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  selectorChipActive: {
+    borderColor: ACCENT,
+    backgroundColor: ACCENT_GLOW,
+  },
+  selectorChipText: {
+    color: TEXT_SECONDARY,
+    fontWeight: "700",
+  },
+  selectorChipTextActive: {
+    color: ACCENT,
+  },
+  selectorHint: {
+    color: TEXT_SECONDARY,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   primaryBtn: {
     borderRadius: 14,
     marginTop: 6,
@@ -455,6 +560,11 @@ const styles = StyleSheet.create({
     color: TEXT_PRIMARY,
     fontWeight: "700",
     fontSize: 15,
+  },
+  budgetMeta: {
+    color: TEXT_SECONDARY,
+    fontSize: 12,
+    marginBottom: 8,
   },
   progressBarBg: {
     height: 8,

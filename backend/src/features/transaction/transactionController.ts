@@ -108,6 +108,16 @@ class TransactionController extends BaseController {
     'Failed to fetch debt summary.',
   );
 
+  getFriendBalances = this.handle(
+    'getFriendBalances',
+    async (ctx) => {
+      const { userId } = ctx.params as { userId: string };
+      const result = await transactionService.getFriendBalances(userId);
+      return this.ok(result);
+    },
+    'Failed to fetch friend balances.',
+  );
+
   getCategoryRules = this.handle(
     'getCategoryRules',
     async (ctx) => {

@@ -225,6 +225,42 @@ export const transactionRepository = {
         });
     },
 
+    findFriendBalanceRows(userId: string) {
+        return prisma.split.findMany({
+            where: {
+                isSettled: false,
+                OR: [
+                    {
+                        userId,
+                        transaction: {
+                            authorId: { not: userId },
+                        },
+                    },
+                    {
+                        userId: { not: userId },
+                        transaction: {
+                            authorId: userId,
+                        },
+                    },
+                ],
+            },
+            include: {
+                user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+                transaction: {
+                    select: {
+                        id: true,
+                        title: true,
+                        authorId: true,
+                        date: true,
+                        author: { select: { id: true, name: true, email: true, avatarUrl: true } },
+                        group: { select: { id: true, name: true, emoji: true } },
+                    },
+                },
+            },
+            orderBy: { transaction: { date: 'desc' } },
+        });
+    },
+
     // ── Category rules ────────────────────────────────────────────────────────
 
     findCategoryRules(userId: string) {

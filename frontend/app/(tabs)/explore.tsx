@@ -18,11 +18,13 @@ import { useAuth } from "@/src/context/AuthContext";
 import { getGroups, GroupSummary } from "@/src/features/group";
 import {
   addSplits,
+  getFriendBalances,
   getTransactions,
   ingestSms,
   Transaction,
   updateTransaction,
 } from "@/src/features/transaction";
+import { getAllUsers } from "@/src/features/user";
 
 const BG = "#0D1117";
 const CARD_BG = "#161D2C";
@@ -93,6 +95,20 @@ function getReviewMeta(tx: Transaction) {
     color: AMBER,
     background: AMBER + "22",
   };
+}
+
+function displayPersonName(person: { name?: string; email: string }) {
+  return person.name || person.email.split("@")[0] || "User";
+}
+
+function formatBalanceHint(net: number) {
+  if (net > 0) {
+    return `Owes you ₹${net.toFixed(2)}`;
+  }
+  if (net < 0) {
+    return `You owe ₹${Math.abs(net).toFixed(2)}`;
+  }
+  return "All settled";
 }
 
 // ─── SMS Modal ────────────────────────────────────────────────────────────────
@@ -532,7 +548,7 @@ function RenameModal({
           >
             <Text style={{ color: "#fff", fontSize: 13 }}>
               {decision === "SPLIT"
-                ? "Split setup opens next, where you can choose whole group, one person, or multiple people."
+                ? "Split setup opens next, where you can choose a group or select people from your friends and user lists."
                 : decision === "PERSONAL"
                   ? "Saving as personal clears any existing split and keeps it only in your private cashflow."
                   : "Choose a label to continue."}
@@ -578,17 +594,23 @@ function SplitModal({
   onSaved: () => void;
 }) {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [allUsers, setAllUsers] = useState<
+    Array<{ id: string; name?: string; email: string }>
+  >([]);
+  const [friendBalances, setFriendBalances] = useState<
+    Array<{
+      userId: string;
+      user: { id: string; name?: string; email: string };
+      net: number;
+    }>
+  >([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
     tx.groupId ?? null,
   );
-  const [splitMode, setSplitMode] = useState<"GROUP" | "INDIVIDUAL" | "MULTIPLE">(
-    tx.splits.length === 0
-      ? "GROUP"
-      : tx.splits.length <= 2
-        ? "INDIVIDUAL"
-        : "MULTIPLE",
+  const [shareMode, setShareMode] = useState<"GROUP" | "PERSON">(
+    tx.groupId ? "GROUP" : "PERSON",
   );
-  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>(
+  const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>(
     tx.splits
       .filter((split) => split.user.id !== authorId)
       .map((split) => split.user.id),
@@ -597,12 +619,28 @@ function SplitModal({
 
   useEffect(() => {
     let mounted = true;
-    getGroups(authorId)
-      .then((res) => {
+    Promise.all([getGroups(authorId), getAllUsers(), getFriendBalances(authorId)])
+      .then(([groupRes, userRes, friendRes]) => {
         if (!mounted) return;
-        setGroups(res);
-        if (!selectedGroupId && res.length > 0) {
-          setSelectedGroupId(res[0]!.id);
+        setGroups(groupRes);
+        setAllUsers(
+          userRes
+            .filter((user: any) => user.id !== authorId)
+            .map((user: any) => ({
+              id: user.id,
+              name: user.name ?? undefined,
+              email: user.email,
+            })),
+        );
+        setFriendBalances(
+          friendRes.map((friend) => ({
+            userId: friend.userId,
+            user: friend.user,
+            net: friend.net,
+          })),
+        );
+        if (!selectedGroupId && groupRes.length > 0) {
+          setSelectedGroupId(groupRes[0]!.id);
         }
       })
       .catch(() => {});
@@ -612,57 +650,55 @@ function SplitModal({
   }, [authorId]);
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) || null;
-  const otherMembers =
+  const groupMembers =
     selectedGroup?.members.filter((member) => member.user.id !== authorId) || [];
+  const friendOptions = friendBalances.map((friend) => ({
+    id: friend.userId,
+    name: friend.user.name,
+    email: friend.user.email,
+    net: friend.net,
+  }));
+  const friendIds = new Set(friendOptions.map((person) => person.id));
+  const userOptions = allUsers.filter((person) => !friendIds.has(person.id));
+  const peopleOptions = [
+    ...friendOptions.map((person) => ({
+      ...person,
+      source: "Friend" as const,
+      hint: formatBalanceHint(person.net),
+    })),
+    ...userOptions.map((person) => ({
+      ...person,
+      source: "User" as const,
+      hint: person.email,
+    })),
+  ];
+  const selectedPeopleSummary =
+    selectedPersonIds.length > 0
+      ? `${selectedPersonIds.length} ${selectedPersonIds.length === 1 ? "person" : "people"} selected`
+      : "Choose people";
 
   useEffect(() => {
-    if (!selectedGroup) {
-      setSelectedParticipantIds([]);
-      return;
+    if (shareMode !== "GROUP") return;
+    if (!selectedGroupId && groups.length > 0) {
+      setSelectedGroupId(groups[0]!.id);
     }
-    const existingParticipantIds = tx.splits
-      .filter((split) => split.user.id !== authorId)
-      .map((split) => split.user.id)
-      .filter((id) => otherMembers.some((member) => member.user.id === id));
+  }, [shareMode, selectedGroupId, groups]);
 
-    if (existingParticipantIds.length > 0) {
-      if (splitMode === "INDIVIDUAL") {
-        setSelectedParticipantIds(existingParticipantIds.slice(0, 1));
-        return;
-      }
-
-      if (splitMode === "MULTIPLE") {
-        setSelectedParticipantIds(existingParticipantIds);
-        return;
-      }
-    }
-
-    if (splitMode === "INDIVIDUAL") {
-      setSelectedParticipantIds(otherMembers[0] ? [otherMembers[0].user.id] : []);
-      return;
-    }
-    setSelectedParticipantIds(otherMembers.map((member) => member.user.id));
-  }, [selectedGroupId, selectedGroup?.members.length, splitMode, authorId, tx.splits]);
-
-  const toggleParticipant = (id: string) => {
-    if (splitMode === "INDIVIDUAL") {
-      setSelectedParticipantIds([id]);
-      return;
-    }
-    setSelectedParticipantIds((prev) =>
+  const togglePerson = (id: string) => {
+    setSelectedPersonIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
   const splitUserIds = [
     authorId,
-    ...(splitMode === "GROUP"
-      ? otherMembers.map((member) => member.user.id)
-      : selectedParticipantIds),
+    ...(shareMode === "GROUP"
+      ? groupMembers.map((member) => member.user.id)
+      : selectedPersonIds),
   ];
 
   const save = async () => {
-    if (!selectedGroupId || splitUserIds.length <= 1) return;
+    if (splitUserIds.length <= 1) return;
 
     setLoading(true);
     try {
@@ -671,7 +707,7 @@ function SplitModal({
         splitUserIds.map((id) => ({ userId: id })),
         "EQUAL",
         tx.amount,
-        selectedGroupId,
+        shareMode === "GROUP" ? selectedGroupId : null,
       );
       onSaved();
       onClose();
@@ -690,122 +726,167 @@ function SplitModal({
             Transaction
           </Text>
           <Text style={smsS.sub}>
-            Choose whether this should be shared with the whole group, one
-            person, or multiple people.
+            Choose whether this should be shared with a group or directly with
+            people from your friend and user lists.
           </Text>
           <Text style={[smsS.sub, { opacity: 0.7 }]}>
             Amount: ₹{tx.amount.toLocaleString("en-IN")} · Method: Equal split
           </Text>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
-          >
-            {groups.map((group) => (
-              <Pressable
-                key={group.id}
-                onPress={() => setSelectedGroupId(group.id)}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: 20,
-                  borderWidth: 1,
-                  borderColor: selectedGroupId === group.id ? ACCENT : BORDER,
-                  backgroundColor:
-                    selectedGroupId === group.id ? ACCENT + "22" : CARD_BG,
-                }}
-              >
-                <Text
-                  style={{
-                    color: selectedGroupId === group.id ? ACCENT : TEXT_DIM,
-                    fontWeight: "700",
-                    fontSize: 12,
-                  }}
-                >
-                  {group.emoji ? `${group.emoji} ` : ""}
-                  {group.name}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-
           <View style={r.choiceRow}>
             {[
-              { id: "GROUP", label: "Group", body: "Everyone in the group" },
-              { id: "INDIVIDUAL", label: "One Person", body: "Split with one person" },
-              { id: "MULTIPLE", label: "Multiple", body: "Choose a few people" },
+              { id: "GROUP", label: "Group" },
+              { id: "PERSON", label: "People" },
             ].map((option) => (
               <Pressable
                 key={option.id}
-                onPress={() =>
-                  setSplitMode(option.id as "GROUP" | "INDIVIDUAL" | "MULTIPLE")
-                }
+                onPress={() => setShareMode(option.id as "GROUP" | "PERSON")}
                 style={[
-                  r.choiceCard,
-                  splitMode === option.id && {
-                    borderColor: ACCENT,
-                    backgroundColor: ACCENT + "14",
-                  },
+                  r.choicePill,
+                  shareMode === option.id && r.choicePillActive,
                 ]}
               >
                 <Text
                   style={[
                     r.choiceTitle,
-                    splitMode === option.id && { color: ACCENT },
+                    shareMode === option.id && r.choiceTitleActive,
                   ]}
                 >
                   {option.label}
                 </Text>
-                <Text style={r.choiceBody}>{option.body}</Text>
               </Pressable>
             ))}
           </View>
 
-          {selectedGroup && (
+          {shareMode === "GROUP" && (
             <View style={{ gap: 8 }}>
-              <Text style={[smsS.sub, { marginTop: 4 }]}>
-                {splitMode === "GROUP"
-                  ? `Everyone in ${selectedGroup.name} will be included.`
-                  : splitMode === "INDIVIDUAL"
-                    ? "Choose one person to split with."
-                    : "Choose multiple people to split with."}
-              </Text>
-              {splitMode !== "GROUP" && (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {otherMembers.map((member) => {
-                    const selected = selectedParticipantIds.includes(
-                      member.user.id,
-                    );
+              <Text style={r.sectionLabel}>Choose Group</Text>
+              <View style={r.dropdown}>
+                {groups.length > 0 ? (
+                  groups.map((group) => {
+                    const selected = selectedGroupId === group.id;
                     return (
                       <Pressable
-                        key={member.id}
-                        onPress={() => toggleParticipant(member.user.id)}
-                        style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 8,
-                          borderRadius: 18,
-                          borderWidth: 1,
-                          borderColor: selected ? GREEN : BORDER,
-                          backgroundColor: selected ? GREEN + "22" : CARD_BG,
-                        }}
+                        key={group.id}
+                        onPress={() => setSelectedGroupId(group.id)}
+                        style={[
+                          r.dropdownOption,
+                          selected && r.dropdownOptionActive,
+                        ]}
                       >
-                        <Text
-                          style={{
-                            color: selected ? GREEN : TEXT_DIM,
-                            fontSize: 12,
-                            fontWeight: "700",
-                          }}
-                        >
-                          {member.user.name ||
-                            member.user.email.split("@")[0] ||
-                            "Member"}
-                        </Text>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={[
+                              r.dropdownTitle,
+                              selected && r.dropdownTitleActive,
+                            ]}
+                          >
+                            {group.emoji ? `${group.emoji} ` : ""}
+                            {group.name}
+                          </Text>
+                          <Text
+                            style={[
+                              r.dropdownMeta,
+                              selected && r.dropdownMetaActive,
+                            ]}
+                          >
+                            {group.members.length} people including you
+                          </Text>
+                        </View>
+                        {selected && (
+                          <Ionicons name="checkmark-circle" size={18} color={ACCENT} />
+                        )}
                       </Pressable>
                     );
-                  })}
+                  })
+                ) : (
+                  <Text style={r.emptyDropdownText}>No groups available yet.</Text>
+                )}
+              </View>
+              {selectedGroup ? (
+                <>
+                  <Text style={[smsS.sub, { marginTop: 4 }]}>
+                    Choose a group and CashSync will include everyone in it.
+                  </Text>
+                  <View
+                    style={[
+                      smsS.resultBox,
+                      {
+                        borderColor: ACCENT + "44",
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 13 }}>
+                      {`${selectedGroup.name} will be split across ${selectedGroup.members.length} people including you.`}
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <View style={[smsS.resultBox, { borderColor: RED + "44" }]}>
+                  <Text style={{ color: TEXT_DIM, fontSize: 12 }}>
+                    Create a group first in the Split tab, then split here.
+                  </Text>
                 </View>
               )}
+            </View>
+          )}
+
+          {shareMode === "PERSON" && (
+            <View style={{ gap: 12 }}>
+              <Text style={[smsS.sub, { marginTop: 4 }]}>
+                Choose one or more people from the dropdown below.
+              </Text>
+              <Text style={r.sectionLabel}>Choose People</Text>
+              <View style={r.dropdown}>
+                <View style={r.dropdownHeader}>
+                  <Text style={r.dropdownHeaderText}>{selectedPeopleSummary}</Text>
+                </View>
+                {peopleOptions.map((person) => {
+                  const selected = selectedPersonIds.includes(person.id);
+                  return (
+                    <Pressable
+                      key={person.id}
+                      onPress={() => togglePerson(person.id)}
+                      style={[
+                        r.dropdownOption,
+                        selected && r.dropdownOptionActive,
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            r.dropdownTitle,
+                            selected && r.dropdownTitleActive,
+                          ]}
+                        >
+                          {displayPersonName(person)}
+                        </Text>
+                        <Text
+                          style={[
+                            r.dropdownMeta,
+                            selected && r.dropdownMetaActive,
+                          ]}
+                        >
+                          {person.source} · {person.hint}
+                        </Text>
+                      </View>
+                      {selected && (
+                        <Ionicons name="checkmark-circle" size={18} color={ACCENT} />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {peopleOptions.length === 0 && (
+                <View style={[smsS.resultBox, { borderColor: RED + "44" }]}>
+                  <Text style={{ color: TEXT_DIM, fontSize: 12 }}>
+                    No people found yet. Add users to groups first, or create
+                    more accounts to split with.
+                  </Text>
+                </View>
+              )}
+
               <View
                 style={[
                   smsS.resultBox,
@@ -815,19 +896,11 @@ function SplitModal({
                 ]}
               >
                 <Text style={{ color: "#fff", fontSize: 13 }}>
-                  {splitMode === "GROUP"
-                    ? `CashSync will split this across ${selectedGroup.members.length} people including you.`
-                    : `CashSync will split this across ${splitUserIds.length} people including you.`}
+                  {selectedPersonIds.length > 0
+                    ? `CashSync will split this across ${selectedPersonIds.length + 1} people including you.`
+                    : "Pick at least one person to continue."}
                 </Text>
               </View>
-            </View>
-          )}
-
-          {!selectedGroup && (
-            <View style={[smsS.resultBox, { borderColor: RED + "44" }]}>
-              <Text style={{ color: TEXT_DIM, fontSize: 12 }}>
-                Create a group first in the Split tab, then split here.
-              </Text>
             </View>
           )}
 
@@ -838,7 +911,11 @@ function SplitModal({
             <Pressable
               style={smsS.submitBtn}
               onPress={save}
-              disabled={loading || !selectedGroup || splitUserIds.length <= 1}
+              disabled={
+                loading
+                || (shareMode === "GROUP" && !selectedGroup)
+                || splitUserIds.length <= 1
+              }
             >
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />
@@ -1215,9 +1292,11 @@ const c = StyleSheet.create({
 
 const r = StyleSheet.create({
   choiceRow: {
+    flexDirection: "row",
     gap: 10,
   },
   choiceCard: {
+    flex: 1,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: BORDER,
@@ -1225,8 +1304,21 @@ const r = StyleSheet.create({
     padding: 14,
     gap: 6,
   },
+  choicePill: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD_BG,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  choicePillActive: {
+    borderColor: ACCENT,
+    backgroundColor: ACCENT + "14",
+  },
   choiceTitle: {
-    color: "#fff",
+    color: TEXT_DIM,
     fontSize: 14,
     fontWeight: "800",
   },
@@ -1234,6 +1326,95 @@ const r = StyleSheet.create({
     color: TEXT_DIM,
     fontSize: 12,
     lineHeight: 18,
+  },
+  choiceTitleActive: {
+    color: ACCENT,
+  },
+  sectionLabel: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  dropdown: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD_BG,
+    overflow: "hidden",
+  },
+  dropdownHeader: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+    backgroundColor: "#0D1526",
+  },
+  dropdownHeaderText: {
+    color: "#D8E1F0",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  dropdownOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+  dropdownOptionActive: {
+    backgroundColor: ACCENT + "14",
+  },
+  dropdownTitle: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  dropdownTitleActive: {
+    color: ACCENT,
+  },
+  dropdownMeta: {
+    marginTop: 2,
+    color: TEXT_DIM,
+    fontSize: 11,
+  },
+  dropdownMetaActive: {
+    color: "#D8E1F0",
+  },
+  emptyDropdownText: {
+    color: TEXT_DIM,
+    fontSize: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  personChip: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD_BG,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  personChipActive: {
+    borderColor: GREEN,
+    backgroundColor: GREEN + "14",
+  },
+  personName: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  personNameActive: {
+    color: GREEN,
+  },
+  personMeta: {
+    color: TEXT_DIM,
+    fontSize: 11,
+  },
+  personMetaActive: {
+    color: "#D7FCE6",
   },
 });
 

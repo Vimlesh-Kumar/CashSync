@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -27,16 +28,31 @@ export default function InsightsScreen() {
   const [budgets, setBudgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!user) return;
+    setLoading(true);
 
-    Promise.all([getStats(user.id), getBudgets(user.id)])
-      .then(([statsRes, budgetRes]) => {
-        setStats(statsRes);
-        setBudgets(budgetRes);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const [statsRes, budgetRes] = await Promise.all([
+        getStats(user.id),
+        getBudgets(user.id),
+      ]);
+      setStats(statsRes);
+      setBudgets(budgetRes);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   if (loading) {
     return (
