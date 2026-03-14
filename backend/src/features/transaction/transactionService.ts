@@ -273,7 +273,7 @@ export const transactionService = {
         const targetCurrency = normalizeCurrency(user.defaultCurrency);
         const splits = await transactionRepository.findUnsettledSplitsByUser(userId);
         const totalOwed = splits.reduce(
-            (sum, s) => sum + convertAmount(s.amountOwed - s.amountPaid, s.transaction.currency, targetCurrency),
+            (sum: number, s: any) => sum + convertAmount(s.amountOwed - s.amountPaid, s.transaction.currency, targetCurrency),
             0,
         );
         return { splits, totalOwed: round2(totalOwed), currency: targetCurrency };
@@ -375,14 +375,14 @@ export const transactionService = {
         );
 
         const income = transactions
-            .filter(t => t.type === 'INCOME')
-            .reduce((s, t) => s + convertAmount(t.amount, t.currency, targetCurrency), 0);
+            .filter((t: any) => t.type === 'INCOME')
+            .reduce((s: number, t: any) => s + convertAmount(t.amount, t.currency, targetCurrency), 0);
         const expense = transactions
-            .filter(t => t.type === 'EXPENSE')
-            .reduce((s, t) => s + convertAmount(t.amount, t.currency, targetCurrency), 0);
+            .filter((t: any) => t.type === 'EXPENSE')
+            .reduce((s: number, t: any) => s + convertAmount(t.amount, t.currency, targetCurrency), 0);
 
         const byCategory: Record<string, number> = {};
-        for (const t of transactions.filter(t => t.type === 'EXPENSE')) {
+        for (const t of transactions.filter((t: any) => t.type === 'EXPENSE')) {
             byCategory[t.category] = (byCategory[t.category] ?? 0) + convertAmount(t.amount, t.currency, targetCurrency);
         }
 

@@ -124,7 +124,7 @@ export const transactionRepository = {
     },
 
     markAsPersonal(id: string, data: { title?: string; note?: string; category?: string; currency?: string }) {
-        return prisma.$transaction(async (tx) => {
+        return prisma.$transaction(async (tx: any) => {
             await tx.split.deleteMany({ where: { transactionId: id } });
             return tx.transaction.update({
                 where: { id },
@@ -174,7 +174,7 @@ export const transactionRepository = {
             groupId?: string | null;
         }
     ) {
-        return prisma.$transaction(async (tx) => {
+        return prisma.$transaction(async (tx: any) => {
             await tx.split.deleteMany({ where: { transactionId } });
 
             const splits = await Promise.all(

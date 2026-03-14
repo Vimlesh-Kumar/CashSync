@@ -1,4 +1,5 @@
 import * as AuthSession from "expo-auth-session";
+import * as Crypto from "expo-crypto";
 import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -128,7 +129,7 @@ export default function AuthScreen() {
             ? ["openid", "email", "profile"]
             : ["openid", "email", "name"],
         extraParams: {
-          nonce: `${provider}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          nonce: `${provider}-${Crypto.randomUUID()}`,
         },
       });
 
