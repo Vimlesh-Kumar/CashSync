@@ -23,6 +23,7 @@ import {
   Transaction,
   TransactionStats,
 } from "@/src/features/transaction";
+import { formatCurrency, normalizeCurrency } from "@/src/lib/currency";
 
 const CATEGORY_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
   "Food & Groceries": { icon: "fast-food", color: "#FF6B6B" },
@@ -131,6 +132,7 @@ export default function HomeScreen() {
 
   const displayName = user?.name || "User";
   const netBalance = (stats?.income || 0) - (stats?.expense || 0);
+  const summaryCurrency = normalizeCurrency(stats?.currency || user?.defaultCurrency);
 
   return (
     <View style={styles.root}>
@@ -160,16 +162,20 @@ export default function HomeScreen() {
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Net Balance</Text>
           <Text style={[styles.balanceValue, { color: netBalance >= 0 ? colors.text : colors.danger }]}> 
-            ₹{Math.abs(netBalance).toLocaleString("en-IN")}
+            {formatCurrency(Math.abs(netBalance), summaryCurrency)}
           </Text>
           <View style={styles.metricsRow}>
             <View>
               <Text style={styles.metricLabel}>Income</Text>
-              <Text style={[styles.metricValue, { color: colors.success }]}>₹{(stats?.income || 0).toLocaleString("en-IN")}</Text>
+              <Text style={[styles.metricValue, { color: colors.success }]}>
+                {formatCurrency(stats?.income || 0, summaryCurrency)}
+              </Text>
             </View>
             <View>
               <Text style={styles.metricLabel}>Expense</Text>
-              <Text style={[styles.metricValue, { color: colors.danger }]}>₹{(stats?.expense || 0).toLocaleString("en-IN")}</Text>
+              <Text style={[styles.metricValue, { color: colors.danger }]}>
+                {formatCurrency(stats?.expense || 0, summaryCurrency)}
+              </Text>
             </View>
           </View>
         </View>
@@ -200,7 +206,7 @@ export default function HomeScreen() {
                 <Text style={styles.txMeta}>{tx.category}</Text>
               </View>
               <Text style={[styles.txAmount, { color: isCredit ? colors.success : colors.text }]}> 
-                {isCredit ? "+" : "-"}₹{tx.amount.toLocaleString("en-IN")}
+                {isCredit ? "+" : "-"}{formatCurrency(tx.amount, tx.currency)}
               </Text>
             </View>
           );

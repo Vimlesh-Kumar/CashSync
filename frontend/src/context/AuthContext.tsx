@@ -13,6 +13,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name?: string;
+  defaultCurrency?: string;
   provider: string;
   createdAt: string;
 }
@@ -28,6 +29,8 @@ interface AuthContextValue {
   signIn: (user: AuthUser, token: string) => Promise<void>;
   /** Wipes the session and sends the user back to login */
   signOut: () => Promise<void>;
+  /** Updates the cached user profile fields */
+  updateCurrentUser: (patch: Partial<AuthUser>) => Promise<void>;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -38,6 +41,7 @@ const AuthContext = createContext<AuthContextValue>({
   initialising: true,
   signIn: async () => {},
   signOut: async () => {},
+  updateCurrentUser: async () => {},
 });
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -85,9 +89,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
   }, []);
 
+  const updateCurrentUser = useCallback(async (patch: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      void AsyncStorage.setItem("user", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ user, token, initialising, signIn, signOut }}
+      value={{ user, token, initialising, signIn, signOut, updateCurrentUser }}
     >
       {children}
     </AuthContext.Provider>

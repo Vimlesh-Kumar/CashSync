@@ -19,6 +19,7 @@ import { useAppTheme } from "@/src/context/ThemeContext";
 import { getGroups, GroupSummary } from "@/src/features/group";
 import {
   addSplits,
+  createTransaction,
   getFriendBalances,
   getTransactions,
   ingestSms,
@@ -26,6 +27,7 @@ import {
   updateTransaction,
 } from "@/src/features/transaction";
 import { getAllUsers } from "@/src/features/user";
+import { formatCurrency, normalizeCurrency, SUPPORTED_CURRENCIES } from "@/src/lib/currency";
 
 const BG = "#0D1117";
 const CARD_BG = "#161D2C";
@@ -102,12 +104,12 @@ function displayPersonName(person: { name?: string; email: string }) {
   return person.name || person.email.split("@")[0] || "User";
 }
 
-function formatBalanceHint(net: number) {
+function formatBalanceHint(net: number, currency: string) {
   if (net > 0) {
-    return `Owes you ₹${net.toFixed(2)}`;
+    return `Owes you ${formatCurrency(net, currency)}`;
   }
   if (net < 0) {
-    return `You owe ₹${Math.abs(net).toFixed(2)}`;
+    return `You owe ${formatCurrency(Math.abs(net), currency)}`;
   }
   return "All settled";
 }
@@ -144,7 +146,7 @@ function SmsModal({
       if ((tx as any).deduplicated) {
         setResult("⚡ Already exists — skipped (duplicate)");
       } else {
-        setResult(`✅ Parsed: ₹${tx.amount} ${tx.type} · ${tx.category}`);
+        setResult(`✅ Parsed: ${formatCurrency(tx.amount, tx.currency)} ${tx.type} · ${tx.category}`);
         if (mode === "AUTO") {
           setAutoStatus("Auto-detected and added from clipboard.");
         }
@@ -662,10 +664,10 @@ function SplitModal({
   const friendIds = new Set(friendOptions.map((person) => person.id));
   const userOptions = allUsers.filter((person) => !friendIds.has(person.id));
   const peopleOptions = [
-    ...friendOptions.map((person) => ({
+      ...friendOptions.map((person) => ({
       ...person,
       source: "Friend" as const,
-      hint: formatBalanceHint(person.net),
+      hint: formatBalanceHint(person.net, tx.currency),
     })),
     ...userOptions.map((person) => ({
       ...person,
@@ -731,7 +733,7 @@ function SplitModal({
             people from your friend and user lists.
           </Text>
           <Text style={[smsS.sub, { opacity: 0.7 }]}>
-            Amount: ₹{tx.amount.toLocaleString("en-IN")} · Method: Equal split
+            Amount: {formatCurrency(tx.amount, tx.currency)} · Method: Equal split
           </Text>
 
           <View style={r.choiceRow}>
@@ -931,6 +933,134 @@ function SplitModal({
   );
 }
 
+function CreateTransactionModal({
+  visible,
+  authorId,
+  defaultCurrency,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  authorId: string;
+  defaultCurrency: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [type, setType] = useState<"EXPENSE" | "INCOME" | "TRANSFER">("EXPENSE");
+  const [category, setCategory] = useState("General");
+  const [currency, setCurrency] = useState(normalizeCurrency(defaultCurrency));
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setCurrency(normalizeCurrency(defaultCurrency));
+  }, [defaultCurrency, visible]);
+
+  const submit = async () => {
+    const parsedAmount = Number.parseFloat(amount);
+    if (!title.trim() || Number.isNaN(parsedAmount) || parsedAmount <= 0) return;
+
+    setLoading(true);
+    try {
+      await createTransaction({
+        title: title.trim(),
+        amount: parsedAmount,
+        currency,
+        type,
+        category,
+        authorId,
+        isPersonal: true,
+        reviewState: "PERSONAL",
+      });
+      setTitle("");
+      setAmount("");
+      setType("EXPENSE");
+      setCategory("General");
+      onSaved();
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={smsS.overlay}>
+        <View style={smsS.sheet}>
+          <Text style={smsS.title}>
+            <Ionicons name="add-circle-outline" size={20} color={ACCENT} /> Add Transaction
+          </Text>
+          <TextInput
+            style={[smsS.input, { minHeight: 0 }]}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Merchant or title"
+            placeholderTextColor="#3D4E68"
+            selectionColor={ACCENT}
+          />
+          <TextInput
+            style={[smsS.input, { minHeight: 0 }]}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            placeholder="Amount"
+            placeholderTextColor="#3D4E68"
+            selectionColor={ACCENT}
+          />
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {(["EXPENSE", "INCOME", "TRANSFER"] as const).map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => setType(option)}
+                style={[r.choicePill, type === option && r.choicePillActive]}
+              >
+                <Text style={[r.choiceTitle, type === option && r.choiceTitleActive]}>{option}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {CATEGORIES.filter((c) => c !== "All").map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => setCategory(option)}
+                style={[r.choicePill, category === option && r.choicePillActive]}
+              >
+                <Text style={[r.choiceTitle, category === option && r.choiceTitleActive]}>{option}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          <Text style={r.sectionLabel}>Currency</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {SUPPORTED_CURRENCIES.map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => setCurrency(option)}
+                style={[r.choicePill, currency === option && r.choicePillActive]}
+              >
+                <Text style={[r.choiceTitle, currency === option && r.choiceTitleActive]}>{option}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          <View style={smsS.btnRow}>
+            <Pressable style={smsS.cancelBtn} onPress={onClose}>
+              <Text style={{ color: MUTED, fontWeight: "600" }}>Cancel</Text>
+            </Pressable>
+            <Pressable style={smsS.submitBtn} onPress={submit} disabled={loading}>
+              {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={smsS.submitText}>Save</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Main Explore Screen ──────────────────────────────────────────────────────
 
 export default function ExploreScreen() {
@@ -947,6 +1077,7 @@ export default function ExploreScreen() {
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<"ALL" | "7D" | "30D">("ALL");
   const [smsOpen, setSmsOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [splitTx, setSplitTx] = useState<Transaction | null>(null);
 
@@ -992,14 +1123,24 @@ export default function ExploreScreen() {
         {/* ── Header ── */}
         <View style={styles.header}>
           <Text style={styles.heading}>Transactions</Text>
-          <Pressable style={styles.smsBtn} onPress={() => setSmsOpen(true)}>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-            >
-              <Ionicons name="scan" size={14} color={colors.success} />
-              <Text style={styles.smsBtnText}>Auto Detect</Text>
-            </View>
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable style={styles.smsBtn} onPress={() => setCreateOpen(true)}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+              >
+                <Ionicons name="add" size={14} color={colors.accent} />
+                <Text style={styles.smsBtnText}>Add</Text>
+              </View>
+            </Pressable>
+            <Pressable style={styles.smsBtn} onPress={() => setSmsOpen(true)}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+              >
+                <Ionicons name="scan" size={14} color={colors.success} />
+                <Text style={styles.smsBtnText}>Auto Detect</Text>
+              </View>
+            </Pressable>
+          </View>
         </View>
 
         <TextInput
@@ -1170,6 +1311,15 @@ export default function ExploreScreen() {
 
       {/* Modals */}
       {user && (
+        <CreateTransactionModal
+          visible={createOpen}
+          authorId={user.id}
+          defaultCurrency={user.defaultCurrency || "INR"}
+          onClose={() => setCreateOpen(false)}
+          onSaved={fetch}
+        />
+      )}
+      {user && (
         <SmsModal
           visible={smsOpen}
           authorId={user.id}
@@ -1255,7 +1405,7 @@ function TxCard({ tx }: { tx: Transaction }) {
         </View>
       </View>
       <Text style={[styles.amount, { color: isCredit ? colors.success : colors.text }]}>
-        {isCredit ? "+" : "−"}₹{tx.amount.toLocaleString("en-IN")}
+        {isCredit ? "+" : "−"}{formatCurrency(tx.amount, tx.currency)}
       </Text>
     </View>
   );

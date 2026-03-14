@@ -4,6 +4,7 @@ import { groupController } from './groupController';
 import {
   addGroupMemberSchema,
   createGroupSchema,
+  getGroupLedgerQuerySchema,
   groupIdParamsSchema,
   listGroupsQuerySchema,
   settleGroupDebtSchema,
@@ -48,7 +49,7 @@ const router = Router();
 router.get('/', validateQuery(listGroupsQuerySchema), groupController.list);
 router.post('/', validateBody(createGroupSchema), groupController.create);
 router.post('/:id/members', validateParams(groupIdParamsSchema), validateBody(addGroupMemberSchema), groupController.addMember);
-router.get('/:id/ledger', validateParams(groupIdParamsSchema), groupController.getLedger);
+router.get('/:id/ledger', validateParams(groupIdParamsSchema), validateQuery(getGroupLedgerQuerySchema), groupController.getLedger);
 router.post('/:id/settle', validateParams(groupIdParamsSchema), validateBody(settleGroupDebtSchema), groupController.settle);
 
 export default router;

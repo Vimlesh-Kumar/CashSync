@@ -17,6 +17,8 @@ import { useAuth } from "@/src/context/AuthContext";
 import { ThemePreference, useAppTheme } from "@/src/context/ThemeContext";
 import { createBudget, getBudgets, updateBudget } from "@/src/features/budget";
 import { CategoryItem, createCategory, getCategories } from "@/src/features/category";
+import { updateUser } from "@/src/features/user";
+import { formatCurrency, normalizeCurrency, SUPPORTED_CURRENCIES } from "@/src/lib/currency";
 
 const BUILT_IN_BUDGET_CATEGORIES = [
   "Food & Groceries",
@@ -38,7 +40,7 @@ type BudgetCategoryOption = {
 };
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateCurrentUser } = useAuth();
   const { colors, preference, setPreference } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -50,6 +52,7 @@ export default function ProfileScreen() {
   const [selectedBudgetCategoryId, setSelectedBudgetCategoryId] = useState<string | null>(null);
   const [selectedBudgetCategoryName, setSelectedBudgetCategoryName] = useState<string | null>(null);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [savingDefaultCurrency, setSavingDefaultCurrency] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -123,6 +126,35 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Default Currency</Text>
+          <Text style={styles.helperText}>This currency is used for new transactions and summaries.</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
+            {SUPPORTED_CURRENCIES.map((currency) => {
+              const selected = normalizeCurrency(user.defaultCurrency) === currency;
+              return (
+                <Pressable
+                  key={currency}
+                  style={[styles.chip, selected && styles.chipActive, savingDefaultCurrency && { opacity: 0.7 }]}
+                  disabled={savingDefaultCurrency}
+                  onPress={async () => {
+                    if (selected) return;
+                    try {
+                      setSavingDefaultCurrency(true);
+                      await updateUser(user.id, { defaultCurrency: currency });
+                      await updateCurrentUser({ defaultCurrency: currency });
+                    } finally {
+                      setSavingDefaultCurrency(false);
+                    }
+                  }}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextActive]}>{currency}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Theme</Text>
           <Text style={styles.helperText}>Choose how CashSync looks on this device.</Text>
           <View style={styles.selectorRow}>
@@ -187,7 +219,7 @@ export default function ProfileScreen() {
           />
           <TextInput
             style={styles.input}
-            placeholder="Amount (₹)"
+            placeholder={`Amount (${normalizeCurrency(user.defaultCurrency)})`}
             placeholderTextColor={colors.textMuted}
             keyboardType="numeric"
             value={budgetAmount}
@@ -277,12 +309,14 @@ export default function ProfileScreen() {
               <View key={budget.id} style={styles.budgetItem}>
                 <View style={styles.budgetTop}>
                   <Text style={styles.budgetName}>{budget.name}</Text>
-                  <Text style={styles.budgetAmount}>₹{budget.amount.toLocaleString("en-IN")}</Text>
+                  <Text style={styles.budgetAmount}>
+                    {formatCurrency(budget.amount, budget.currency || user.defaultCurrency)}
+                  </Text>
                 </View>
                 <Text style={styles.budgetMeta}>
-                  {budget.category?.name || budget.categoryLabel || "Unlinked"} • Spent ₹
-                  {(budget.spent || 0).toLocaleString("en-IN")} • Remaining ₹
-                  {(budget.remaining || 0).toLocaleString("en-IN")}
+                  {budget.category?.name || budget.categoryLabel || "Unlinked"} • Spent{" "}
+                  {formatCurrency(budget.spent || 0, budget.currency || user.defaultCurrency)} • Remaining{" "}
+                  {formatCurrency(budget.remaining || 0, budget.currency || user.defaultCurrency)}
                 </Text>
                 <View style={styles.progressBg}>
                   <View style={[styles.progressFill, { width: `${Math.min(budget.usage || 0, 100)}%` }]} />

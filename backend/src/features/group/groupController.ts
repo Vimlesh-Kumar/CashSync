@@ -3,6 +3,7 @@ import { groupService } from './groupService';
 import type {
   AddGroupMemberRequest,
   CreateGroupRequest,
+  GetGroupLedgerQuery,
   SettleGroupDebtRequest,
 } from './groupSchema';
 
@@ -44,7 +45,8 @@ class GroupController extends BaseController {
     'getLedger',
     async (ctx) => {
       const { id } = ctx.params as { id: string };
-      const ledger = await groupService.getLedger(id);
+      const { userId } = ctx.query as GetGroupLedgerQuery;
+      const ledger = await groupService.getLedger(id, userId);
       return this.ok(ledger);
     },
     'Failed to fetch group ledger.',
