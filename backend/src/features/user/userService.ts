@@ -8,6 +8,14 @@ import { AuthResponse, UpdateUserRequest } from "./userSchema";
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 const SALT_ROUNDS = 10;
 
+type HttpError = Error & { status: number };
+
+function createHttpError(status: number, message: string): HttpError {
+  const error = new Error(message) as HttpError;
+  error.status = status;
+  return error;
+}
+
 // ─── User Service ─────────────────────────────────────────────────────────────
 // All business logic. No Express types. No Prisma. No req/res.
 
@@ -18,20 +26,20 @@ export class UserService {
 
   async getProfile(id: string) {
     const user = await userRepository.findById(id);
-    if (!user) throw { status: 404, message: "User not found." };
+    if (!user) throw createHttpError(404, "User not found.");
     return user;
   }
 
   async updateUser(id: string, data: UpdateUserRequest) {
     const user = await userRepository.findById(id);
-    if (!user) throw { status: 404, message: "User not found." };
+    if (!user) throw createHttpError(404, "User not found.");
 
     return await userRepository.updateProfile(id, data);
   }
 
   async deleteUser(id: string) {
     const user = await userRepository.findById(id);
-    if (!user) throw { status: 404, message: "User not found." };
+    if (!user) throw createHttpError(404, "User not found.");
 
     return await userRepository.delete(id);
   }
@@ -50,7 +58,7 @@ export class UserService {
 
     if (provider === "JWT") {
       if (!email) {
-        throw { status: 400, message: "Email is required for JWT login." };
+        throw createHttpError(400, "Email is required for JWT login.");
       }
       user = await userRepository.findByEmail(email);
 
@@ -60,15 +68,11 @@ export class UserService {
           user = await userRepository.updatePassword(user.id, hashed);
         } else {
           if (!user.password) {
-            throw {
-              status: 400,
-              message:
-                "This email is linked to a social provider. Sign in via Google or Apple.",
-            };
+            throw createHttpError(400, "This email is linked to a social provider. Sign in via Google or Apple.");
           }
           const valid = await bcrypt.compare(password!, user.password);
           if (!valid) {
-            throw { status: 401, message: "Invalid email or password." };
+            throw createHttpError(401, "Invalid email or password.");
           }
         }
       } else {
@@ -83,23 +87,16 @@ export class UserService {
       }
     } else {
       if (!idToken) {
-        throw { status: 400, message: "OAuth idToken is required." };
+        throw createHttpError(400, "OAuth idToken is required.");
       }
 
       const identity = await oauthService.verify(provider, idToken);
       const resolvedEmail = identity.email ?? email;
       if (!resolvedEmail) {
-        throw {
-          status: 400,
-          message:
-            "OAuth email is unavailable. Please share email scope and try again.",
-        };
+        throw createHttpError(400, "OAuth email is unavailable. Please share email scope and try again.");
       }
       if (email && resolvedEmail.toLowerCase() !== email.toLowerCase()) {
-        throw {
-          status: 400,
-          message: "Provided email does not match OAuth token email.",
-        };
+        throw createHttpError(400, "Provided email does not match OAuth token email.");
       }
 
       const linkedByProvider = await userRepository.findByAuthProvider(
@@ -113,11 +110,7 @@ export class UserService {
         userByEmail &&
         linkedByProvider.user.id !== userByEmail.id
       ) {
-        throw {
-          status: 409,
-          message:
-            "This OAuth identity is already linked to another account.",
-        };
+        throw createHttpError(409, "This OAuth identity is already linked to another account.");
       }
 
       user = linkedByProvider?.user ?? userByEmail;
@@ -156,7 +149,7 @@ export class UserService {
 
     // Strip password from response
     if (!user) {
-      throw { status: 500, message: "Unable to complete authentication." };
+      throw createHttpError(500, "Unable to complete authentication.");
     }
 
     const { password: _pwd, ...safeUser } = user;

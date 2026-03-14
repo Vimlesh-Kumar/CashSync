@@ -6,7 +6,7 @@ import { transactionRepository } from './transactionRepository';
 import { AddSplitsRequest, CreateTransactionRequest, StatsQuery, UpdateTransactionRequest } from './transactionSchema';
 
 function normalizeMerchant(value: string): string {
-    return value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 16);
+    return value.toUpperCase().replaceAll(/[^A-Z0-9]/g, '').substring(0, 16);
 }
 
 function buildDedupHash(params: {
@@ -27,6 +27,14 @@ function round2(value: number) {
     return Math.round(value * 100) / 100;
 }
 
+type HttpError = Error & { status: number };
+
+function createHttpError(status: number, message: string): HttpError {
+    const error = new Error(message) as HttpError;
+    error.status = status;
+    return error;
+}
+
 function computeSplitAmounts(
     method: 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES',
     splits: AddSplitsRequest['splits'],
@@ -34,31 +42,31 @@ function computeSplitAmounts(
 ) {
     if (method === 'EXACT') {
         const exact = splits.map((s) => {
-            if (s.amountOwed === undefined) throw { status: 400, message: 'Exact split requires amountOwed for each member.' };
+            if (s.amountOwed === undefined) throw createHttpError(400, 'Exact split requires amountOwed for each member.');
             return { userId: s.userId, amountOwed: round2(s.amountOwed) };
         });
         const sum = round2(exact.reduce((acc, s) => acc + s.amountOwed, 0));
         if (Math.abs(sum - totalAmount) > 0.01) {
-            throw { status: 400, message: 'Exact split total must match transaction amount.' };
+            throw createHttpError(400, 'Exact split total must match transaction amount.');
         }
         return exact;
     }
 
     if (method === 'PERCENT') {
         const percent = splits.map((s) => {
-            if (s.percentage === undefined) throw { status: 400, message: 'Percent split requires percentage for each member.' };
+            if (s.percentage === undefined) throw createHttpError(400, 'Percent split requires percentage for each member.');
             return { userId: s.userId, percentage: s.percentage };
         });
         const totalPct = percent.reduce((acc, s) => acc + s.percentage, 0);
         if (Math.abs(totalPct - 100) > 0.01) {
-            throw { status: 400, message: 'Percent split must sum to 100.' };
+            throw createHttpError(400, 'Percent split must sum to 100.');
         }
         return percent.map((s) => ({ userId: s.userId, amountOwed: round2((totalAmount * s.percentage) / 100) }));
     }
 
     if (method === 'SHARES') {
         const shares = splits.map((s) => {
-            if (s.shares === undefined) throw { status: 400, message: 'Shares split requires shares for each member.' };
+            if (s.shares === undefined) throw createHttpError(400, 'Shares split requires shares for each member.');
             return { userId: s.userId, shares: s.shares };
         });
         const totalShares = shares.reduce((acc, s) => acc + s.shares, 0);
@@ -108,7 +116,7 @@ export const transactionService = {
 
     async create(params: CreateTransactionRequest) {
         const author = await userRepository.findById(params.authorId);
-        if (!author) throw { status: 404, message: 'Author not found.' };
+        if (!author) throw createHttpError(404, 'Author not found.');
         const txDate = params.date ? new Date(params.date) : new Date();
         const txCurrency = normalizeCurrency(params.currency ?? author.defaultCurrency);
         const hash = buildDedupHash({
@@ -126,12 +134,16 @@ export const transactionService = {
         // Smart auto-categorisation (user rules → system rules)
         const userRules = await transactionRepository.findCategoryRules(params.authorId);
         const finalCategory = params.category || autoCategory(params.title, userRules);
-        const inferredReviewState = params.reviewState
-            ?? (params.isPersonal === false || !!params.groupId
-                ? 'SPLIT'
-                : params.source && params.source !== 'MANUAL'
-                    ? 'UNREVIEWED'
-                    : 'PERSONAL');
+        let inferredReviewState = params.reviewState;
+        if (!inferredReviewState) {
+            if (params.isPersonal === false || !!params.groupId) {
+                inferredReviewState = 'SPLIT';
+            } else if (params.source && params.source !== 'MANUAL') {
+                inferredReviewState = 'UNREVIEWED';
+            } else {
+                inferredReviewState = 'PERSONAL';
+            }
+        }
 
         return transactionRepository.create({
             title: params.title,
@@ -152,8 +164,14 @@ export const transactionService = {
     },
 
     async update(id: string, data: UpdateTransactionRequest) {
-        const nextReviewState = data.reviewState
-            ?? (data.isPersonal === true ? 'PERSONAL' : data.isPersonal === false ? 'SPLIT' : undefined);
+        let nextReviewState = data.reviewState;
+        if (!nextReviewState) {
+            if (data.isPersonal === true) {
+                nextReviewState = 'PERSONAL';
+            } else if (data.isPersonal === false) {
+                nextReviewState = 'SPLIT';
+            }
+        }
 
         if (nextReviewState === 'PERSONAL') {
             return transactionRepository.markAsPersonal(id, {
@@ -190,7 +208,7 @@ export const transactionService = {
         });
 
         if (!parsed) {
-            throw { status: 422, message: 'Could not parse SMS. Bank format may not be supported yet.' };
+            throw createHttpError(422, 'Could not parse SMS. Bank format may not be supported yet.');
         }
 
         const hash = buildSmsHash(parsed, rawSms);
@@ -220,7 +238,7 @@ export const transactionService = {
 
     async addSplits(transactionId: string, { splits, method, totalAmount, groupId }: AddSplitsRequest) {
         const tx = await transactionRepository.findById(transactionId);
-        if (!tx) throw { status: 404, message: 'Transaction not found.' };
+        if (!tx) throw createHttpError(404, 'Transaction not found.');
 
         const normalizedSplits = computeSplitAmounts(
             method,
@@ -240,7 +258,7 @@ export const transactionService = {
 
     async settleSplit(splitId: string) {
         const split = await transactionRepository.findSplitById(splitId);
-        if (!split) throw { status: 404, message: 'Split not found.' };
+        if (!split) throw createHttpError(404, 'Split not found.');
 
         return transactionRepository.updateSplit(splitId, {
             isSettled: true,
@@ -251,7 +269,7 @@ export const transactionService = {
 
     async getDebtSummary(userId: string) {
         const user = await userRepository.findById(userId);
-        if (!user) throw { status: 404, message: 'User not found.' };
+        if (!user) throw createHttpError(404, 'User not found.');
         const targetCurrency = normalizeCurrency(user.defaultCurrency);
         const splits = await transactionRepository.findUnsettledSplitsByUser(userId);
         const totalOwed = splits.reduce(
@@ -263,7 +281,7 @@ export const transactionService = {
 
     async getFriendBalances(userId: string) {
         const user = await userRepository.findById(userId);
-        if (!user) throw { status: 404, message: 'User not found.' };
+        if (!user) throw createHttpError(404, 'User not found.');
         const targetCurrency = normalizeCurrency(user.defaultCurrency);
         const rows = await transactionRepository.findFriendBalanceRows(userId);
         const balanceByUser = new Map<string, {
@@ -348,7 +366,7 @@ export const transactionService = {
 
     async getStats(params: StatsQuery) {
         const user = await userRepository.findById(params.userId);
-        if (!user) throw { status: 404, message: 'User not found.' };
+        if (!user) throw createHttpError(404, 'User not found.');
         const targetCurrency = normalizeCurrency(params.targetCurrency ?? user.defaultCurrency);
         const transactions = await transactionRepository.findManyForStats(
             params.userId,

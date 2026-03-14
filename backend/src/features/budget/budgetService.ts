@@ -12,10 +12,10 @@ function addMonth(date: Date) {
 function normalizeLabel(value?: string | null) {
     return (value ?? '')
         .toLowerCase()
-        .replace(/\bbudget\b/g, '')
-        .replace(/&/g, ' and ')
-        .replace(/[^a-z0-9]+/g, ' ')
-        .replace(/\s+/g, ' ')
+        .replaceAll(/\bbudget\b/g, '')
+        .replaceAll('&', ' and ')
+        .replaceAll(/[^a-z0-9]+/g, ' ')
+        .replaceAll(/\s+/g, ' ')
         .trim();
 }
 

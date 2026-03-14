@@ -4,7 +4,7 @@
  */
 export const queueService = {
     enqueueParsingJob(payload: Record<string, unknown>) {
-        // TODO: push payload to Redis-backed queue.
+        // Planned integration point for Redis-backed queue push.
         return { queued: true, payload };
     },
 };

@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { ApiContext } from './apiContext';
 
 type TransactionConnection = {
@@ -15,7 +15,7 @@ export class DbTransaction {
 
   constructor(context: ApiContext) {
     if (!(context instanceof ApiContext)) {
-      throw new Error('The context argument needs to be an instance of ApiContext');
+      throw new TypeError('The context argument needs to be an instance of ApiContext');
     }
 
     this.connection = context.connection as TransactionConnection | undefined;
@@ -25,7 +25,7 @@ export class DbTransaction {
 
   async runWithinTransaction<T>(serviceFn: () => Promise<T>): Promise<T> {
     if (!this.connection) {
-      throw new Error('Invalid context to start a transaction.');
+      throw new TypeError('Invalid context to start a transaction.');
     }
 
     this.connection.transactionReqId = this.requestId;
