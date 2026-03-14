@@ -1,0 +1,253 @@
+
+> backend@1.0.0 test:coverage
+> vitest run --coverage
+
+
+[1m[46m RUN [49m[22m [36mv4.1.0 [39m[90m/Users/vimleshkumar/Desktop/projects/Cashsync/backend[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m src/features/group/spec/groupService.spec.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/features/category/spec/categoryRepository.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/features/transaction/spec/transactionService.spec.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/features/budget/spec/budgetService.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+[90mstdout[2m | src/features/budget/spec/budgetController.spec.ts[2m > [22m[2mBudgetController[2m > [22m[2mshould create budget
+[22m[39m{"timestamp":"2026-03-14T18:35:28.486Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"aae19e4a-1c4e-4457-b0ca-de30a654567e","feature":"budget","action":"create"}}
+
+[90mstdout[2m | src/features/budget/spec/budgetController.spec.ts[2m > [22m[2mBudgetController[2m > [22m[2mshould create budget
+[22m[39m{"timestamp":"2026-03-14T18:35:28.488Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"aae19e4a-1c4e-4457-b0ca-de30a654567e","feature":"budget","action":"create","durationMs":1}}
+
+[90mstdout[2m | src/features/budget/spec/budgetController.spec.ts[2m > [22m[2mBudgetController[2m > [22m[2mshould list budgets
+[22m[39m{"timestamp":"2026-03-14T18:35:28.489Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"fd194e91-0f61-472f-8f18-ca607d88722f","feature":"budget","action":"list"}}
+
+[90mstdout[2m | src/features/budget/spec/budgetController.spec.ts[2m > [22m[2mBudgetController[2m > [22m[2mshould list budgets
+[22m[39m{"timestamp":"2026-03-14T18:35:28.489Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"fd194e91-0f61-472f-8f18-ca607d88722f","feature":"budget","action":"list","durationMs":0}}
+
+[90mstdout[2m | src/features/budget/spec/budgetController.spec.ts[2m > [22m[2mBudgetController[2m > [22m[2mshould update budget
+[22m[39m{"timestamp":"2026-03-14T18:35:28.489Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"4bf99f40-6bf0-4631-9b71-528cf2229e17","feature":"budget","action":"update"}}
+
+[90mstdout[2m | src/features/budget/spec/budgetController.spec.ts[2m > [22m[2mBudgetController[2m > [22m[2mshould update budget
+[22m[39m{"timestamp":"2026-03-14T18:35:28.489Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"4bf99f40-6bf0-4631-9b71-528cf2229e17","feature":"budget","action":"update","durationMs":0}}
+
+[90mstderr[2m | src/base/spec/apiController.spec.ts[2m > [22m[2mApiController[2m > [22m[2mshould respond error
+[22m[39m{"timestamp":"2026-03-14T18:35:28.486Z","level":"ERROR","scope":"app","message":"respond.error","meta":{"requestId":"eead300a-99db-47f0-9261-cb9cd262fc1c","feature":"unknown","action":"unknown","method":"GET","path":"/","error":{"error":"fail"}}}
+
+[90mstdout[2m | src/features/user/spec/userController.spec.ts[2m > [22m[2mUserController[2m > [22m[2mgetAllUsers[2m > [22m[2mshould return users
+[22m[39m{"timestamp":"2026-03-14T18:35:28.489Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"c2b8240d-db1b-4895-9d20-d960cd4b4511","feature":"user","action":"getAllUsers"}}
+
+[90mstdout[2m | src/base/spec/apiController.spec.ts[2m > [22m[2mBaseController[2m > [22m[2mshould handle success
+[22m[39m{"timestamp":"2026-03-14T18:35:28.491Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"43d7b498-3d18-41fb-9cce-ce5d5503ca63","feature":"test","action":"success","method":"GET","path":"/"}}
+
+[90mstdout[2m | src/base/spec/apiController.spec.ts[2m > [22m[2mBaseController[2m > [22m[2mshould handle success
+[22m[39m{"timestamp":"2026-03-14T18:35:28.491Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"43d7b498-3d18-41fb-9cce-ce5d5503ca63","feature":"test","action":"success","method":"GET","path":"/","durationMs":0}}
+
+[90mstdout[2m | src/features/user/spec/userController.spec.ts[2m > [22m[2mUserController[2m > [22m[2mgetAllUsers[2m > [22m[2mshould return users
+[22m[39m{"timestamp":"2026-03-14T18:35:28.491Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"c2b8240d-db1b-4895-9d20-d960cd4b4511","feature":"user","action":"getAllUsers","durationMs":2}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould list groups
+[22m[39m{"timestamp":"2026-03-14T18:35:28.490Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"ab38719c-93bc-4069-aba8-354b89ae0f01","feature":"group","action":"list"}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould list groups
+[22m[39m{"timestamp":"2026-03-14T18:35:28.491Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"ab38719c-93bc-4069-aba8-354b89ae0f01","feature":"group","action":"list","durationMs":1}}
+
+[90mstdout[2m | src/base/spec/apiController.spec.ts[2m > [22m[2mBaseController[2m > [22m[2mshould handle failure with default message
+[22m[39m{"timestamp":"2026-03-14T18:35:28.492Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"a3d11a5f-0bdd-451d-b791-c257b22d5b42","feature":"test","action":"fail","method":"GET","path":"/"}}
+
+[90mstdout[2m | src/features/category/spec/categoryController.spec.ts[2m > [22m[2mCategoryController[2m > [22m[2mlist[2m > [22m[2mshould return list of categories
+[22m[39m{"timestamp":"2026-03-14T18:35:28.491Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"2043ee36-abaa-4199-ae5e-48ceaa6d220c","feature":"category","action":"list"}}
+
+[90mstdout[2m | src/features/category/spec/categoryController.spec.ts[2m > [22m[2mCategoryController[2m > [22m[2mlist[2m > [22m[2mshould return list of categories
+[22m[39m{"timestamp":"2026-03-14T18:35:28.492Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"2043ee36-abaa-4199-ae5e-48ceaa6d220c","feature":"category","action":"list","durationMs":1}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould create group
+[22m[39m{"timestamp":"2026-03-14T18:35:28.492Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"a5de2b42-cea4-4b70-873f-0562914b2b63","feature":"group","action":"create"}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould create group
+[22m[39m{"timestamp":"2026-03-14T18:35:28.492Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"a5de2b42-cea4-4b70-873f-0562914b2b63","feature":"group","action":"create","durationMs":0}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould add member
+[22m[39m{"timestamp":"2026-03-14T18:35:28.493Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"5a6ed791-bceb-41bf-9d03-fc54085f8c76","feature":"group","action":"addMember"}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould add member
+[22m[39m{"timestamp":"2026-03-14T18:35:28.493Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"5a6ed791-bceb-41bf-9d03-fc54085f8c76","feature":"group","action":"addMember","durationMs":0}}
+
+[90mstdout[2m | src/features/category/spec/categoryController.spec.ts[2m > [22m[2mCategoryController[2m > [22m[2mcreate[2m > [22m[2mshould create and return 201
+[22m[39m{"timestamp":"2026-03-14T18:35:28.493Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"ed3f0363-e519-49ac-b3b1-19e6b8e7ff56","feature":"category","action":"create"}}
+
+[90mstdout[2m | src/features/category/spec/categoryController.spec.ts[2m > [22m[2mCategoryController[2m > [22m[2mcreate[2m > [22m[2mshould create and return 201
+[22m[39m{"timestamp":"2026-03-14T18:35:28.493Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"ed3f0363-e519-49ac-b3b1-19e6b8e7ff56","feature":"category","action":"create","durationMs":0}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould get ledger
+[22m[39m{"timestamp":"2026-03-14T18:35:28.493Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"f783bbac-5370-4a4b-bbea-1c93620edcc5","feature":"group","action":"getLedger"}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould get ledger
+[22m[39m{"timestamp":"2026-03-14T18:35:28.493Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"f783bbac-5370-4a4b-bbea-1c93620edcc5","feature":"group","action":"getLedger","durationMs":0}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould settle debt
+[22m[39m{"timestamp":"2026-03-14T18:35:28.494Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"44845e79-9f2f-4cc6-8043-241b08d12fb0","feature":"group","action":"settle"}}
+
+[90mstdout[2m | src/features/group/spec/groupController.spec.ts[2m > [22m[2mGroupController[2m > [22m[2mshould settle debt
+[22m[39m{"timestamp":"2026-03-14T18:35:28.494Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"44845e79-9f2f-4cc6-8043-241b08d12fb0","feature":"group","action":"settle","durationMs":0}}
+
+[90mstderr[2m | src/base/spec/apiController.spec.ts[2m > [22m[2mBaseController[2m > [22m[2mshould handle failure with default message
+[22m[39m{"timestamp":"2026-03-14T18:35:28.494Z","level":"ERROR","scope":"app","message":"request.error","meta":{"requestId":"a3d11a5f-0bdd-451d-b791-c257b22d5b42","feature":"test","action":"fail","method":"GET","path":"/","statusCode":500,"durationMs":0,"error":{"name":"Error","message":"boom","stack":"Error: boom\n    at /Users/vimleshkumar/Desktop/projects/Cashsync/backend/src/base/spec/apiController.spec.ts:45:52\n    at TestController.fail (/Users/vimleshkumar/Desktop/projects/Cashsync/backend/src/base/apiController.ts:104:32)\n    at /Users/vimleshkumar/Desktop/projects/Cashsync/backend/src/base/spec/apiController.spec.ts:77:22\n    at file:///Users/vimleshkumar/Desktop/projects/Cashsync/backend/node_modules/@vitest/runner/dist/index.js:296:11\n    at file:///Users/vimleshkumar/Desktop/projects/Cashsync/backend/node_modules/@vitest/runner/dist/index.js:1258:26\n    at file:///Users/vimleshkumar/Desktop/projects/Cashsync/backend/node_modules/@vitest/runner/dist/index.js:1681:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/vimleshkumar/Desktop/projects/Cashsync/backend/node_modules/@vitest/runner/dist/index.js:1678:10)\n    at file:///Users/vimleshkumar/Desktop/projects/Cashsync/backend/node_modules/@vitest/runner/dist/index.js:1660:20\n    at new Promise (<anonymous>)"}}}
+
+[90mstdout[2m | src/base/spec/apiController.spec.ts[2m > [22m[2mBaseController[2m > [22m[2mshould handle no content
+[22m[39m{"timestamp":"2026-03-14T18:35:28.494Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"c884c1eb-41fd-4849-a7b7-ce960fa0bb34","feature":"test","action":"noContent","method":"GET","path":"/"}}
+
+[90mstdout[2m | src/base/spec/apiController.spec.ts[2m > [22m[2mBaseController[2m > [22m[2mshould handle no content
+[22m[39m{"timestamp":"2026-03-14T18:35:28.494Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"c884c1eb-41fd-4849-a7b7-ce960fa0bb34","feature":"test","action":"noContent","method":"GET","path":"/","durationMs":0}}
+
+ [32m✓[39m src/features/budget/spec/budgetController.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+[90mstdout[2m | src/features/user/spec/userController.spec.ts[2m > [22m[2mUserController[2m > [22m[2mgetProfile[2m > [22m[2mshould return profile
+[22m[39m{"timestamp":"2026-03-14T18:35:28.494Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"dcd56f9d-3d9e-43a7-bc39-73ed85fcbd21","feature":"user","action":"getProfile"}}
+
+[90mstdout[2m | src/features/user/spec/userController.spec.ts[2m > [22m[2mUserController[2m > [22m[2mgetProfile[2m > [22m[2mshould return profile
+[22m[39m{"timestamp":"2026-03-14T18:35:28.494Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"dcd56f9d-3d9e-43a7-bc39-73ed85fcbd21","feature":"user","action":"getProfile","durationMs":0}}
+
+[90mstdout[2m | src/features/user/spec/userController.spec.ts[2m > [22m[2mUserController[2m > [22m[2mdeleteUser[2m > [22m[2mshould delete user
+[22m[39m{"timestamp":"2026-03-14T18:35:28.495Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"007a67fc-804d-477a-8091-4fcdcca9204d","feature":"user","action":"deleteUser"}}
+
+[90mstdout[2m | src/features/user/spec/userController.spec.ts[2m > [22m[2mUserController[2m > [22m[2mdeleteUser[2m > [22m[2mshould delete user
+[22m[39m{"timestamp":"2026-03-14T18:35:28.495Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"007a67fc-804d-477a-8091-4fcdcca9204d","feature":"user","action":"deleteUser","durationMs":0}}
+
+ [32m✓[39m src/features/group/spec/groupController.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/base/spec/apiController.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/features/user/spec/userController.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/features/category/spec/categoryController.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/base/spec/apiContext.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/workers/spec/ingestion.worker.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/features/user/spec/userService.spec.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/services/spec/sms.service.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/base/log/spec/logger.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/features/group/spec/groupRepository.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould get all transactions
+[22m[39m{"timestamp":"2026-03-14T18:35:28.670Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"9c912c59-e2c9-4e7c-a557-9eb0270581d7","feature":"transaction","action":"getAll"}}
+
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould get all transactions
+[22m[39m{"timestamp":"2026-03-14T18:35:28.671Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"9c912c59-e2c9-4e7c-a557-9eb0270581d7","feature":"transaction","action":"getAll","durationMs":1}}
+
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould create transaction
+[22m[39m{"timestamp":"2026-03-14T18:35:28.672Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"68e069cc-e515-4076-843d-24166d244495","feature":"transaction","action":"create"}}
+
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould create transaction
+[22m[39m{"timestamp":"2026-03-14T18:35:28.672Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"68e069cc-e515-4076-843d-24166d244495","feature":"transaction","action":"create","durationMs":0}}
+
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould return 200 if creation is deduplicated
+[22m[39m{"timestamp":"2026-03-14T18:35:28.673Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"a71bca9d-7a8d-4377-b591-a799b0cf1fec","feature":"transaction","action":"create"}}
+
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould return 200 if creation is deduplicated
+[22m[39m{"timestamp":"2026-03-14T18:35:28.673Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"a71bca9d-7a8d-4377-b591-a799b0cf1fec","feature":"transaction","action":"create","durationMs":0}}
+
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould ingest sms
+[22m[39m{"timestamp":"2026-03-14T18:35:28.673Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"15313ce7-77be-4558-8ea1-dcb9cce0133c","feature":"transaction","action":"ingestSms"}}
+
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould ingest sms
+[22m[39m{"timestamp":"2026-03-14T18:35:28.673Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"15313ce7-77be-4558-8ea1-dcb9cce0133c","feature":"transaction","action":"ingestSms","durationMs":0}}
+
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould get stats
+[22m[39m{"timestamp":"2026-03-14T18:35:28.673Z","level":"INFO","scope":"app","message":"request.start","meta":{"requestId":"4284b661-3a3e-462b-858d-8feaebe756ad","feature":"transaction","action":"getStats"}}
+
+[90mstdout[2m | src/features/transaction/spec/transactionController.spec.ts[2m > [22m[2mTransactionController[2m > [22m[2mshould get stats
+[22m[39m{"timestamp":"2026-03-14T18:35:28.673Z","level":"INFO","scope":"app","message":"request.success","meta":{"requestId":"4284b661-3a3e-462b-858d-8feaebe756ad","feature":"transaction","action":"getStats","durationMs":0}}
+
+ [32m✓[39m src/features/user/spec/userRepository.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/features/budget/spec/budgetRepository.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/parsers/spec/smsParsers.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/features/transaction/spec/transactionController.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/features/transaction/spec/transactionRepository.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/base/spec/dbTransaction.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/services/spec/oauth.service.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/services/spec/categorization.service.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/lib/spec/currency.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/base/log/spec/repository.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/features/category/spec/categoryService.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/base/spec/applicationError.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/services/spec/others.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/parsers/spec/emailParsers.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m29 passed[39m[22m[90m (29)[39m
+[2m      Tests [22m [1m[32m165 passed[39m[22m[90m (165)[39m
+[2m   Start at [22m 00:05:28
+[2m   Duration [22m 663ms[2m (transform 661ms, setup 0ms, import 1.13s, tests 170ms, environment 2ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   65.43 |    60.07 |    65.5 |   67.26 |                   
+ base              |   52.88 |     43.7 |   61.29 |    53.6 |                   
+  apiContext.ts    |   93.75 |    83.33 |   83.33 |   93.75 | 82-86             
+  apiController.ts |   76.78 |       64 |    87.5 |   76.78 | ...36,141,156,173 
+  apiEndpoint.ts   |       0 |        0 |       0 |       0 | 31-42             
+  apiSchema.ts     |       0 |        0 |       0 |       0 | 5-67              
+  apiService.ts    |       0 |        0 |       0 |       0 | 8-13              
+  ...ationError.ts |   96.55 |    73.33 |     100 |   96.55 | 39                
+  ...Repository.ts |       0 |        0 |       0 |       0 | 10-17             
+  ...lerFactory.ts |       0 |        0 |       0 |       0 | 12-118            
+  dbTransaction.ts |      90 |       75 |     100 |      90 | 18,52             
+  index.ts         |       0 |        0 |       0 |       0 |                   
+ base/log          |    87.5 |    73.33 |      90 |    87.5 |                   
+  factory.ts       |   76.92 |       60 |     100 |   76.92 | 16,20,24          
+  index.ts         |       0 |        0 |       0 |       0 |                   
+  logger.ts        |   88.88 |      100 |   83.33 |   88.88 | 19                
+  repository.ts    |     100 |      100 |     100 |     100 |                   
+  writter.ts       |     100 |      100 |     100 |     100 |                   
+ features          |       0 |      100 |       0 |       0 |                   
+  index.ts         |       0 |      100 |       0 |       0 | 14-29             
+ features/budget   |   68.62 |       80 |   67.85 |   68.18 |                   
+  budgetApi.ts     |       0 |        0 |       0 |       0 | 7-44              
+  ...Controller.ts |     100 |      100 |     100 |     100 |                   
+  ...Repository.ts |     100 |    68.75 |     100 |     100 | 23-25,27-28       
+  budgetSchema.ts  |       0 |      100 |     100 |       0 | 3-30              
+  budgetService.ts |   98.07 |    95.34 |     100 |     100 | 13-24             
+  index.ts         |       0 |        0 |       0 |       0 |                   
+ features/category |   42.85 |    33.33 |   53.84 |   45.45 |                   
+  categoryApi.ts   |       0 |        0 |       0 |       0 | 7-32              
+  ...Controller.ts |     100 |      100 |     100 |     100 |                   
+  ...Repository.ts |     100 |      100 |     100 |     100 |                   
+  ...gorySchema.ts |       0 |      100 |     100 |       0 | 3-11              
+  ...oryService.ts |     100 |      100 |     100 |     100 |                   
+  index.ts         |       0 |        0 |       0 |       0 |                   
+ features/group    |   78.78 |    69.04 |   76.47 |   81.11 |                   
+  groupApi.ts      |       0 |        0 |       0 |       0 | 14-53             
+  ...Controller.ts |     100 |      100 |     100 |     100 |                   
+  ...Repository.ts |     100 |       50 |     100 |     100 | 101               
+  groupSchema.ts   |       0 |        0 |       0 |       0 | 4-32              
+  groupService.ts  |   94.73 |    77.02 |   92.85 |    98.3 | 29,34             
+  index.ts         |       0 |        0 |       0 |       0 |                   
+ ...es/transaction |   55.82 |    54.45 |   57.69 |   59.77 |                   
+  index.ts         |       0 |        0 |       0 |       0 |                   
+  ...sactionApi.ts |       0 |        0 |       0 |       0 | 14-49             
+  ...Controller.ts |   53.06 |     62.5 |   38.46 |   53.06 | ...34-135,143-145 
+  ...Repository.ts |   48.07 |    51.38 |   57.14 |   58.13 | ...12-220,283-289 
+  ...tionSchema.ts |       0 |      100 |     100 |       0 | 6-60              
+  ...ionService.ts |   71.79 |    57.62 |   73.68 |    77.2 | ...29,352-364,390 
+ features/user     |   67.22 |    78.57 |   46.66 |   67.54 |                   
+  index.ts         |       0 |        0 |       0 |       0 |                   
+  userApi.ts       |       0 |        0 |       0 |       0 | 7-35              
+  ...Controller.ts |      75 |      100 |   66.66 |      75 | 32-34,52-53       
+  ...Repository.ts |   45.45 |        0 |      40 |   45.45 | 17,32,55-79       
+  userSchema.ts    |       0 |        0 |       0 |       0 | 6-33              
+  userService.ts   |     100 |    94.82 |     100 |     100 | 136-137           
+ lib               |   84.21 |    81.81 |     100 |   83.33 |                   
+  currency.ts      |     100 |    81.81 |     100 |     100 | 55-56             
+  db.ts            |       0 |      100 |     100 |       0 | 8-10              
+ parsers/api       |       0 |      100 |       0 |       0 |                   
+  bankApiParser.ts |       0 |      100 |       0 |       0 | 20                
+ parsers/email     |    87.5 |       60 |     100 |     100 |                   
+  gmailParser.ts   |     100 |      100 |     100 |     100 |                   
+  outlookParser.ts |     100 |      100 |     100 |     100 |                   
+  ...ransaction.ts |   85.71 |       60 |     100 |     100 | 5-14              
+ parsers/sms       |   84.05 |    67.39 |     100 |   86.66 |                   
+  bankParser.ts    |   79.16 |    56.25 |     100 |   81.81 | 35-38             
+  upiParser.ts     |   86.66 |    73.33 |     100 |   89.47 | 30-31,44-48       
+ services          |   70.32 |    55.23 |   82.14 |   72.85 |                   
+  ...pi.service.ts |     100 |      100 |     100 |     100 |                   
+  ...on.service.ts |     100 |      100 |     100 |     100 |                   
+  email.service.ts |     100 |      100 |     100 |     100 |                   
+  oauth.service.ts |   41.42 |    34.54 |   58.33 |   42.42 | ...82-136,149,176 
+  queue.service.ts |     100 |      100 |     100 |     100 |                   
+  sms.service.ts   |   92.64 |    75.55 |     100 |     100 | ...04,116,146-147 
+ workers           |     100 |      100 |     100 |     100 |                   
+  ...ion.worker.ts |     100 |      100 |     100 |     100 |                   
+-------------------|---------|----------|---------|---------|-------------------

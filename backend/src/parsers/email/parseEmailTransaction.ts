@@ -11,11 +11,16 @@ export function parseEmailTransaction(text: string): ParsedTransactionPayload | 
     const amountRaw = amountMatch[1];
     if (!amountRaw) return null;
 
+    const merchantRaw = merchantMatch?.[1] || '';
+    const stopMatch = /\b(on|at|ref|txn|utr|id)\b|[.;]/i.exec(merchantRaw);
+    const merchant = (stopMatch ? merchantRaw.slice(0, stopMatch.index) : merchantRaw).trim();
+    const transactionId = txnMatch?.[1]?.trim();
+
     return {
         amount: Number.parseFloat(amountRaw.replaceAll(',', '')),
         type,
-        merchant: merchantMatch?.[1]?.trim(),
-        transactionId: txnMatch?.[1]?.trim(),
+        merchant,
+        transactionId,
         timestamp: new Date(),
         source: 'EMAIL',
         raw: text,
