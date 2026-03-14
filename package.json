@@ -14,7 +14,8 @@
     "lint:check": "npm run lint:backend && npm run lint:frontend",
     "lint:backend": "npm --prefix backend run lint",
     "lint:backend:fix": "npm --prefix backend run lint:fix",
-    "lint:frontend": "npm --prefix frontend run lint"
+    "lint:frontend": "npm --prefix frontend run lint",
+    "setup:sonar:github": "bash scripts/setup-github-sonar.sh"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
