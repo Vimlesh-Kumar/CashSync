@@ -92,16 +92,16 @@ export const groupService = {
         const targetCurrency = normalizeCurrency(user.defaultCurrency);
         const groups = await groupRepository.listByUser(userId);
 
-        return groups.map((group) => {
+        return groups.map((group: any) => {
             const youOwe = group.transactions
-                .flatMap((t) => t.splits.map((s) => ({ split: s, authorId: t.authorId, currency: t.currency })))
-                .filter((x) => x.split.userId === userId && x.authorId !== userId && !x.split.isSettled)
-                .reduce((sum, x) => sum + convertAmount(x.split.amountOwed - x.split.amountPaid, x.currency, targetCurrency), 0);
+                .flatMap((t: any) => t.splits.map((s: any) => ({ split: s, authorId: t.authorId, currency: t.currency })))
+                .filter((x: any) => x.split.userId === userId && x.authorId !== userId && !x.split.isSettled)
+                .reduce((sum: number, x: any) => sum + convertAmount(x.split.amountOwed - x.split.amountPaid, x.currency, targetCurrency), 0);
 
             const youAreOwed = group.transactions
-                .flatMap((t) => t.splits.map((s) => ({ split: s, authorId: t.authorId, currency: t.currency })))
-                .filter((x) => x.authorId === userId && x.split.userId !== userId && !x.split.isSettled)
-                .reduce((sum, x) => sum + convertAmount(x.split.amountOwed - x.split.amountPaid, x.currency, targetCurrency), 0);
+                .flatMap((t: any) => t.splits.map((s: any) => ({ split: s, authorId: t.authorId, currency: t.currency })))
+                .filter((x: any) => x.authorId === userId && x.split.userId !== userId && !x.split.isSettled)
+                .reduce((sum: number, x: any) => sum + convertAmount(x.split.amountOwed - x.split.amountPaid, x.currency, targetCurrency), 0);
 
             return {
                 id: group.id,
@@ -143,7 +143,7 @@ export const groupService = {
             throw createHttpError(400, 'Unable to resolve user for membership.');
         }
 
-        const exists = group.members.some((m) => m.userId === resolvedUserId);
+        const exists = group.members.some((m: any) => m.userId === resolvedUserId);
         if (exists) throw createHttpError(409, 'User is already a group member.');
 
         return groupRepository.addMember(groupId, resolvedUserId, data.role);
@@ -221,7 +221,7 @@ export const groupService = {
         }
 
         if (!payload.currency) {
-            const distinctCurrencies = new Set(unsettled.map((split) => split.transaction.currency));
+            const distinctCurrencies = new Set(unsettled.map((split: any) => split.transaction.currency));
             if (distinctCurrencies.size > 1) {
                 throw createHttpError(400, 'Multiple currencies found. Please specify settlement currency.');
             }

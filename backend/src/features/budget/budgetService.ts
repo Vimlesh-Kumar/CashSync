@@ -74,9 +74,9 @@ export const budgetService = {
             budgetRepository.findExpenseTransactions(userId, monthStart, monthEnd),
         ]);
 
-        return budgets.map((budget) => {
+        return budgets.map((budget: any) => {
             const matchers = getBudgetMatchers(budget);
-            const spent = txs.reduce((sum, tx) => {
+            const spent = txs.reduce((sum: number, tx: any) => {
                 if (budget.categoryId && tx.categoryId === budget.categoryId) {
                     return sum + tx.amount;
                 }
