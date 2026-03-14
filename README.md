@@ -185,6 +185,7 @@ Backend (`backend/.env`):
 
 - `GOOGLE_CLIENT_IDS=your-google-client-id.apps.googleusercontent.com`
 - `APPLE_CLIENT_IDS=your-apple-service-id`
+- `CORS_ALLOWED_ORIGINS=https://app.cashsync.example`
 
 Frontend (`frontend/.env`):
 
