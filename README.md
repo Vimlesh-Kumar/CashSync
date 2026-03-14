@@ -161,6 +161,7 @@ graph TD
 
 - Backend TypeScript build passes (`npm run build` in `backend`)
 - Frontend type-check passes (`npx tsc --noEmit` in `frontend`)
+- ESLint checks are available across backend + frontend (`npm run lint:check`)
 
 ---
 
@@ -193,3 +194,4 @@ Frontend (`frontend/.env`):
 For full architecture and endpoint reference, see:
 
 - `docs/ARCHITECTURE.md`
+- `docs/CODE_QUALITY.md` (ESLint + Sonar setup, CI integration, troubleshooting)

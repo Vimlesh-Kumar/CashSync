@@ -21,7 +21,6 @@ export default [
     rules: {
       ...tseslint.configs.recommended.rules,
       indent: ['error', 2],
-      '@typescript-eslint/indent': ['error', 2],
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['error'],
     },

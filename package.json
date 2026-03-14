@@ -10,8 +10,11 @@
     "bootstrap:backend": "cd backend && npm install && npm run prisma:generate && npm run prisma:seed",
     "bootstrap:frontend": "cd frontend && npm install",
     "bootstrap": "bash scripts/bootstrap.sh",
-    "lint": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
-    "lint:check": "eslint . --ext .ts,.tsx,.js,.jsx"
+    "lint": "npm run lint:backend:fix && npm run lint:frontend",
+    "lint:check": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "npm --prefix backend run lint",
+    "lint:backend:fix": "npm --prefix backend run lint:fix",
+    "lint:frontend": "npm --prefix frontend run lint"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
