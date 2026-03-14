@@ -85,19 +85,19 @@ const SMS_RULES: SmsRule[] = [
 ];
 
 function parseAmount(raw: string): number {
-    return parseFloat(raw.replace(/,/g, ""));
+    return Number.parseFloat(raw.replaceAll(",", ""));
 }
 
 function normalizeMerchant(raw?: string): string | undefined {
     if (!raw) return undefined;
-    const value = raw.replace(/\s+/g, " ").replace(/[.,;:\-]+$/g, "").trim();
+    const value = raw.replaceAll(/\s+/g, " ").replaceAll(/[.,;:-]+$/g, "").trim();
     return value || undefined;
 }
 
 function parseSmsDate(raw?: string): Date | undefined {
     if (!raw) return undefined;
 
-    const normalized = raw.trim().replace(/[/.]/g, "-");
+    const normalized = raw.trim().replaceAll(/[/.]/g, "-");
     const match = normalized.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
 
     if (match) {
@@ -161,5 +161,5 @@ function formatDayKey(date: Date): string {
 export function buildSmsHash(parsed: ParsedSms, rawSms: string): string {
     const day = formatDayKey(parsed.date || new Date());
     const merchant = parsed.merchant?.substring(0, 12) || rawSms.substring(0, 20);
-    return `SMS-${parsed.amount}-${day}-${merchant.toUpperCase().replace(/\s+/g, "")}`;
+    return `SMS-${parsed.amount}-${day}-${merchant.toUpperCase().replaceAll(/\s+/g, "")}`;
 }
