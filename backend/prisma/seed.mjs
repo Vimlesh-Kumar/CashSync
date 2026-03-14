@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
-const { PrismaClient } = require('@prisma/client');
-const { PrismaPg } = require('@prisma/adapter-pg');
-const bcrypt = require('bcrypt');
-const { Pool } = require('pg');
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import bcrypt from 'bcrypt';
+import { Pool } from 'pg';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -162,14 +162,12 @@ async function seed() {
   console.log('✅ Seed complete. Demo user: demo@cashsync.app');
 }
 
-(async () => {
-  try {
-    await seed();
-  } catch (err) {
-    console.error('❌ Seed failed', err);
-    process.exitCode = 1;
-  } finally {
-    await prisma.$disconnect();
-    await pool.end();
-  }
-})();
+try {
+  await seed();
+} catch (err) {
+  console.error('❌ Seed failed', err);
+  process.exitCode = 1;
+} finally {
+  await prisma.$disconnect();
+  await pool.end();
+}

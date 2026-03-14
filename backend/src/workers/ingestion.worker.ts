@@ -13,7 +13,7 @@ export function buildIngestionFingerprint(tx: ParsedTransactionPayload): string 
     const bucket2m = Math.floor(tx.timestamp.getTime() / (2 * 60 * 1000));
     const merchant = (tx.merchant || 'UNKNOWN')
         .toUpperCase()
-        .replace(/[^A-Z0-9]/g, '')
+        .replaceAll(/[^A-Z0-9]/g, '')
         .slice(0, 16);
 
     return `F-${tx.amount}-${bucket2m}-${merchant}`;

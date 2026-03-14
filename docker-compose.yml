@@ -5,9 +5,9 @@ services:
     container_name: cashsync-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
-      POSTGRES_DB: cashsync
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in your environment or .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment or .env}
+      POSTGRES_DB: ${POSTGRES_DB:-cashsync}
     ports:
       - "5433:5432"
     volumes:
@@ -36,7 +36,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgrespassword@db:5432/cashsync?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cashsync}?schema=public
       - PORT=3000
       - REDIS_URL=redis://redis:6379
     # Add a health check to wait for DB

@@ -10,7 +10,7 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "prisma:seed": "node prisma/seed.js",
+    "prisma:seed": "node prisma/seed.mjs",
     "db:push": "prisma db push",
     "lint": "eslint \"src/**/*.{ts,js}\" --max-warnings=0",
     "lint:fix": "eslint \"src/**/*.{ts,js}\" --fix"
@@ -49,6 +49,6 @@
     "typescript": "^5.9.3"
   },
   "prisma": {
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.mjs"
   }
 }
