@@ -211,7 +211,7 @@ function SmsModal({
     setResult(null);
     setAutoStatus(null);
     setManualOpen(false);
-    void handleAutoDetect();
+    handleAutoDetect();
   }, [visible, handleAutoDetect]);
 
   return (

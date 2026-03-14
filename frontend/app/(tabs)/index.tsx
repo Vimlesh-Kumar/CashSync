@@ -108,7 +108,7 @@ export default function HomeScreen() {
   }, [fadeAnim, user]);
 
   useEffect(() => {
-    void load();
+    load();
   }, [load]);
 
   if (loading) {
@@ -145,7 +145,7 @@ export default function HomeScreen() {
             refreshing={refreshing}
             onRefresh={() => {
               setRefreshing(true);
-              void load(true);
+              load(true);
             }}
             tintColor={colors.accent}
           />
