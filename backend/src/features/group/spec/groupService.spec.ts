@@ -22,6 +22,12 @@ vi.mock('../../user/userRepository', () => ({
   },
 }));
 
+vi.mock('../../activity/activityService', () => ({
+  activityService: {
+    log: vi.fn().mockResolvedValue(null),
+  },
+}));
+
 vi.mock('../../../lib/currency', () => ({
   convertAmount: vi.fn((a) => a),
   DEFAULT_CURRENCY: 'INR',
@@ -72,7 +78,8 @@ describe('GroupService', () => {
 
   describe('create', () => {
     it('should call repository create', async () => {
-      const data = { name: 'Group' };
+      const data = { name: 'Group', ownerId: 'u1' };
+      vi.mocked(groupRepository.create).mockResolvedValue({ id: 'g1', name: 'Group', emoji: null } as any);
       await groupService.create(data as any);
       expect(groupRepository.create).toHaveBeenCalledWith(data);
     });

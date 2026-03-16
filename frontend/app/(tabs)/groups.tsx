@@ -50,6 +50,12 @@ function CreateGroupModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [emoji, setEmoji] = useState("");
+
+  const handleEmojiChange = (text: string) => {
+    // Limit to 1 visible grapheme cluster (handles multi-codepoint emojis ✈️, 🛍️, etc.)
+    const segments = [...new Intl.Segmenter().segment(text)];
+    setEmoji(segments.length > 0 ? segments[0]!.segment : "");
+  };
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
@@ -93,10 +99,11 @@ function CreateGroupModal({
           />
           <TextInput
             style={styles.input}
-            placeholder="Emoji (optional)"
+            placeholder="Emoji (optional, e.g. 🏝️)"
             placeholderTextColor={colors.textMuted}
             value={emoji}
-            onChangeText={setEmoji}
+            onChangeText={handleEmojiChange}
+            maxLength={8}
           />
 
           <View style={styles.rowGap}>

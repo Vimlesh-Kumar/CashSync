@@ -2,6 +2,8 @@ import { groupRepository } from './groupRepository';
 import { convertAmount, DEFAULT_CURRENCY, normalizeCurrency, type CurrencyCode } from '../../lib/currency';
 import { AddGroupMemberRequest, CreateGroupRequest, SettleGroupDebtRequest } from './groupSchema';
 import { userRepository } from '../user/userRepository';
+import { activityService } from '../activity/activityService';
+
 
 type LedgerEdge = {
     fromUserId: string;
@@ -123,7 +125,15 @@ export const groupService = {
     },
 
     async create(data: CreateGroupRequest) {
-        return groupRepository.create(data);
+        const group = await groupRepository.create(data);
+        await activityService.log({
+            userId: data.ownerId,
+            groupId: group.id,
+            action: 'CREATE_GROUP',
+            entityId: group.id,
+            metadata: { name: group.name, emoji: group.emoji },
+        });
+        return group;
     },
 
     async addMember(groupId: string, data: AddGroupMemberRequest) {

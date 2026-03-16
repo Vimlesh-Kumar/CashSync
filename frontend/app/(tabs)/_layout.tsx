@@ -125,18 +125,50 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="groups"
         options={{
-          title: "Profile",
+          title: "Groups",
           tabBarIcon: ({ focused }) => (
             <TabIcon
-              icon={focused ? "person" : "person-outline"}
+              icon={focused ? "people" : "people-outline"}
               focused={focused}
               accent={colors.accent}
               muted={colors.textMuted}
             />
           ),
         }}
+      />
+      <Tabs.Screen
+        name="activity"
+        options={{
+          title: "Activity",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon
+              icon={focused ? "pulse" : "pulse-outline"}
+              focused={focused}
+              accent={colors.accent}
+              muted={colors.textMuted}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="recurring"
+        options={{
+          title: "Recurring",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon
+              icon={focused ? "repeat" : "repeat-outline"}
+              focused={focused}
+              accent={colors.accent}
+              muted={colors.textMuted}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="transactions"
+        options={{ href: null }}
       />
     </Tabs>
   );
