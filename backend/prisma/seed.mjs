@@ -4,7 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcrypt';
 import { Pool } from 'pg';
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = "postgresql://postgres:postgrespassword@localhost:5433/cashsync?schema=public";
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required to run seed.');
 }

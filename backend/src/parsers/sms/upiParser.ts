@@ -56,7 +56,10 @@ export function parseUpiSms(rawSms: string): ParsedTransactionPayload | null {
 
     const direction = (UPI_DIRECTION_PATTERN.exec(rawSms)?.[1] || '').toLowerCase();
     const type = /credit|received/.test(direction) ? 'INCOME' : 'EXPENSE';
-    const merchant = UPI_MERCHANT_PATTERN.exec(rawSms)?.[1]?.trim();
+    const merchantMatch = UPI_MERCHANT_PATTERN.exec(rawSms);
+    const merchantRaw = merchantMatch?.[1] || '';
+    const stopMatch = /\b(on|at|ref|txn|utr|id)\b|[.;]/i.exec(merchantRaw);
+    const merchant = (stopMatch ? merchantRaw.slice(0, stopMatch.index) : merchantRaw).trim();
     const referenceId = extractUpiReference(rawSms);
 
     return {

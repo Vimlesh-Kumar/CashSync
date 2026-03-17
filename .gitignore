@@ -39,3 +39,7 @@ docker-compose.override.yml
 
 # Local notes
 idea.rtf
+
+# Testing
+coverage/
+*.lcov

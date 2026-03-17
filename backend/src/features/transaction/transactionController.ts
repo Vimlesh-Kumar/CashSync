@@ -155,6 +155,47 @@ class TransactionController extends BaseController {
     },
     'Failed to fetch stats.',
   );
+
+  export = this.handle(
+    'export',
+    async (ctx) => {
+      const { userId, format } = ctx.query as { userId: string; format?: string };
+      const { transactions } = await transactionService.getAll({ userId, limit: 10000 });
+
+      if (format === 'csv') {
+        const headers = ['id', 'date', 'title', 'amount', 'currency', 'type', 'category', 'source', 'note'];
+        const rows = (transactions as any[]).map((t: any) =>
+          headers.map((h) => {
+            const v = t[h] ?? '';
+            return typeof v === 'string' && v.includes(',') ? `"${v}"` : String(v);
+          }).join(',')
+        );
+        const csv = [headers.join(','), ...rows].join('\n');
+        ctx.response.setHeader('Content-Type', 'text/csv');
+        ctx.response.setHeader('Content-Disposition', 'attachment; filename="cashsync-export.csv"');
+        ctx.response.send(csv);
+        return;
+      }
+
+      // Default: JSON
+      ctx.response.setHeader('Content-Type', 'application/json');
+      ctx.response.setHeader('Content-Disposition', 'attachment; filename="cashsync-backup.json"');
+      ctx.response.json(transactions);
+      return;
+    },
+    'Failed to export transactions.',
+  );
+
+  getLiveRates = this.handle(
+    'getLiveRates',
+    async (_ctx) => {
+      const { getLiveRates } = await import('../../lib/currency');
+      const rates = await getLiveRates();
+      return this.ok({ rates, updatedAt: new Date().toISOString() });
+    },
+    'Failed to fetch live exchange rates.',
+  );
 }
 
 export const transactionController = new TransactionController();
+
