@@ -4,7 +4,18 @@ import { SUPPORTED_CURRENCIES } from '../../lib/currency';
 export const createGroupSchema = z.object({
     name: z.string().min(1, 'name is required.'),
     description: z.string().optional(),
-    emoji: z.string().max(4).optional(),
+    emoji: z
+        .string()
+        .refine(
+            (val) => {
+                // Count visible characters (grapheme clusters) — handles multi-codepoint emojis like ✈️, 🛍️
+                const segmenter = new Intl.Segmenter();
+                const segments = [...segmenter.segment(val)];
+                return segments.length <= 2; // allow 1 emoji (some have a variation selector = 2 segments)
+            },
+            { message: 'emoji must be a single emoji character.' }
+        )
+        .optional(),
     ownerId: z.string().uuid('ownerId must be a valid UUID.'),
 });
 

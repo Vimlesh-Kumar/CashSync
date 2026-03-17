@@ -18,6 +18,7 @@ import { ThemePreference, useAppTheme } from "@/src/context/ThemeContext";
 import { createBudget, getBudgets, updateBudget } from "@/src/features/budget";
 import { CategoryItem, createCategory, getCategories } from "@/src/features/category";
 import { updateUser } from "@/src/features/user";
+import { getExportUrl, getLiveRates, LiveRates } from "@/src/features/activity/api/activity.api";
 import { formatCurrency, normalizeCurrency, SUPPORTED_CURRENCIES } from "@/src/lib/currency";
 
 const BUILT_IN_BUDGET_CATEGORIES = [
@@ -54,6 +55,9 @@ export default function ProfileScreen() {
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [savingDefaultCurrency, setSavingDefaultCurrency] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [liveRates, setLiveRates] = useState<LiveRates | null>(null);
+  const [ratesLoading, setRatesLoading] = useState(false);
+
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -329,6 +333,84 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ─── Export Data ─── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>📤 Export Data</Text>
+          <Text style={styles.helperText}>Download all your transactions for backup or analysis.</Text>
+          <View style={styles.row}>
+            <Pressable
+              id="export-json-btn"
+              style={[styles.exportBtn, { flex: 1 }]}
+              onPress={async () => {
+                if (!user) return;
+                const url = getExportUrl(user.id, 'json');
+                // On native: open in browser. On web: anchor click
+                const { Linking } = await import('react-native');
+                await Linking.openURL(url);
+              }}
+            >
+              <Text style={styles.exportBtnText}>📋 JSON</Text>
+            </Pressable>
+            <Pressable
+              id="export-csv-btn"
+              style={[styles.exportBtn, { flex: 1, backgroundColor: `${colors.accent}22`, borderColor: colors.accent }]}
+              onPress={async () => {
+                if (!user) return;
+                const url = getExportUrl(user.id, 'csv');
+                const { Linking } = await import('react-native');
+                await Linking.openURL(url);
+              }}
+            >
+              <Text style={[styles.exportBtnText, { color: colors.accent }]}>📊 CSV</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ─── Live Exchange Rates ─── */}
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={styles.cardTitle}>💱 Exchange Rates</Text>
+            <Pressable
+              id="load-rates-btn"
+              style={[styles.actionBtn, { paddingHorizontal: 12, paddingVertical: 8 }]}
+              onPress={async () => {
+                setRatesLoading(true);
+                try {
+                  const data = await getLiveRates();
+                  setLiveRates(data);
+                } catch {
+                  Alert.alert('Error', 'Could not fetch live rates.');
+                } finally {
+                  setRatesLoading(false);
+                }
+              }}
+            >
+              {ratesLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.actionBtnText}>Load</Text>
+              )}
+            </Pressable>
+          </View>
+          <Text style={styles.helperText}>Live USD-based rates for 26+ currencies (cached 1hr).</Text>
+          {liveRates && (
+            <>
+              <Text style={{ color: colors.textMuted, fontSize: 11 }}>Updated: {new Date(liveRates.updatedAt).toLocaleTimeString()}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
+                {Object.entries(liveRates.rates)
+                  .filter(([code]) => code !== 'USD')
+                  .slice(0, 20)
+                  .map(([code, rate]) => (
+                    <View key={code} style={styles.rateChip}>
+                      <Text style={styles.rateCode}>{code}</Text>
+                      <Text style={styles.rateValue}>{rate.toFixed(2)}</Text>
+                    </View>
+                  ))}
+              </ScrollView>
+            </>
+          )}
+        </View>
+
         <Pressable style={styles.logoutBtn} onPress={signOut}>
           <Text style={styles.logoutText}>Sign Out</Text>
         </Pressable>
@@ -491,4 +573,26 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       justifyContent: "center",
       borderRadius: 16,
     },
+    exportBtn: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      borderRadius: 12,
+      alignItems: "center",
+      paddingVertical: 12,
+    },
+    exportBtnText: { color: colors.text, fontWeight: "700", fontSize: 14 },
+    rateChip: {
+      backgroundColor: colors.input,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      alignItems: "center",
+      minWidth: 52,
+    },
+    rateCode: { color: colors.textMuted, fontSize: 10, fontWeight: "700" },
+    rateValue: { color: colors.text, fontSize: 13, fontWeight: "800" },
   });
+
