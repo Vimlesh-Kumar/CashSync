@@ -47,5 +47,7 @@ router.get('/rules/:userId', transactionController.getCategoryRules);
 router.post('/rules', validateBody(createCategoryRuleSchema), transactionController.createCategoryRule);
 router.delete('/rules/:ruleId', transactionController.deleteCategoryRule);
 router.get('/stats', validateQuery(statsQuerySchema), transactionController.getStats);
+router.get('/export', transactionController.export);
+router.get('/live-rates', transactionController.getLiveRates);
 
 export default router;

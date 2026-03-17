@@ -11,28 +11,31 @@ datasource db {
 // ─────────────────────────────────────────────
 
 model User {
-  id         String  @id @default(uuid())
-  email      String  @unique
-  name       String?
-  avatarUrl  String?
-  defaultCurrency String @default("INR")
-  password   String? // Optional — only for JWT/email auth
-  provider   String  @default("JWT") // GOOGLE | APPLE | JWT
-  providerId String? // OAuth subject ID (optional for JWT)
+  id              String  @id @default(uuid())
+  email           String  @unique
+  name            String?
+  avatarUrl       String?
+  defaultCurrency String  @default("INR")
+  password        String? // Optional — only for JWT/email auth
+  provider        String  @default("JWT") // GOOGLE | APPLE | JWT
+  providerId      String? // OAuth subject ID (optional for JWT)
+  expoPushToken   String? // For Expo push notifications
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  authProviders   AuthProvider[]
-  transactions  Transaction[]
+  authProviders      AuthProvider[]
+  transactions       Transaction[]
   transactionSources TransactionSource[]
-  memberships   GroupMember[]
-  splits        Split[]
-  categoryRules CategoryRule[] // user-defined auto-tag rules
-  smsTemplates  SmsTemplate[] // user-saved SMS parser templates
-  categories    Category[]
-  budgets       Budget[]
-  people        Person[]
+  memberships        GroupMember[]
+  splits             Split[]
+  categoryRules      CategoryRule[]
+  smsTemplates       SmsTemplate[]
+  categories         Category[]
+  budgets            Budget[]
+  people             Person[]
+  activityLogs       ActivityLog[]
+  recurringBills     RecurringBill[]
 
   @@map("users")
 }
@@ -63,12 +66,14 @@ model Group {
   id          String   @id @default(uuid())
   name        String
   description String?
-  emoji       String? // e.g. "🏖" for "Goa Trip"
+  emoji       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  members      GroupMember[]
-  transactions Transaction[]
+  members        GroupMember[]
+  transactions   Transaction[]
+  activityLogs   ActivityLog[]
+  recurringBills RecurringBill[]
 
   @@map("groups")
 }
@@ -92,39 +97,29 @@ model GroupMember {
 // ─────────────────────────────────────────────
 
 model Transaction {
-  id       String   @id @default(uuid())
-  title    String
-  note     String? // User-editable memo / renamed label
-  amount   Float
-  currency String   @default("INR")
-  date     DateTime @default(now())
+  id            String   @id @default(uuid())
+  title         String
+  note          String?
+  amount        Float
+  currency      String   @default("INR")
+  date          DateTime @default(now())
+  type          String   @default("EXPENSE") // EXPENSE | INCOME | TRANSFER
+  category      String   @default("General")
+  source        String   @default("MANUAL") // MANUAL | SMS | EMAIL | API
+  categoryId    String?
+  sourceId      String?
+  hash          String?
+  isPersonal    Boolean  @default(true)
+  reviewState   String   @default("UNREVIEWED") // UNREVIEWED | PERSONAL | SPLIT
+  originalTitle String?
 
-  // Classification
-  type     String @default("EXPENSE") // EXPENSE | INCOME | TRANSFER
-  category String @default("General") // auto-tagged or manual
-  source   String @default("MANUAL") // MANUAL | SMS | EMAIL | API
-  categoryId String?
-
-  // Deduplication fingerprinting
-  sourceId String? // original reference/txn ID from bank
-  hash     String? // composite fingerprint for dedup
-
-  // Privacy
-  isPersonal Boolean @default(true)
-  reviewState String @default("UNREVIEWED") // UNREVIEWED | PERSONAL | SPLIT
-
-  // Renaming history
-  originalTitle String? // stores the raw bank SMS/email title
-
-  // Relations
   authorId String
-  author   User   @relation(fields: [authorId], references: [id])
-
-  groupId String?
-  group   Group?  @relation(fields: [groupId], references: [id])
+  author   User    @relation(fields: [authorId], references: [id])
+  groupId  String?
+  group    Group?  @relation(fields: [groupId], references: [id])
   categoryRef Category? @relation("TransactionCategory", fields: [categoryId], references: [id])
 
-  splits Split[]
+  splits  Split[]
   sources TransactionSource[]
 
   createdAt DateTime @default(now())
@@ -141,16 +136,14 @@ model Transaction {
 // ─────────────────────────────────────────────
 
 model Split {
-  id            String @id @default(uuid())
+  id            String    @id @default(uuid())
   transactionId String
   userId        String
-
-  amountOwed Float
-  amountPaid Float     @default(0.0)
-  isSettled  Boolean   @default(false)
-  settledAt  DateTime?
-
-  splitMethod String @default("EQUAL") // EQUAL | EXACT | PERCENT | SHARES
+  amountOwed    Float
+  amountPaid    Float     @default(0.0)
+  isSettled     Boolean   @default(false)
+  settledAt     DateTime?
+  splitMethod   String    @default("EQUAL") // EQUAL | EXACT | PERCENT | SHARES
 
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   user        User        @relation(fields: [userId], references: [id])
@@ -163,13 +156,12 @@ model Split {
 // SMART CATEGORIZATION
 // ─────────────────────────────────────────────
 
-// User-defined + system rules for auto-tagging
 model CategoryRule {
   id       String @id @default(uuid())
   userId   String
-  pattern  String // regex or keyword e.g. "SWIGGY|ZOMATO"
-  category String // e.g. "Food & Drinks"
-  priority Int    @default(0) // higher = checked first
+  pattern  String
+  category String
+  priority Int    @default(0)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -197,17 +189,17 @@ model Category {
 }
 
 model Budget {
-  id          String   @id @default(uuid())
-  userId      String
-  categoryId  String?
+  id            String   @id @default(uuid())
+  userId        String
+  categoryId    String?
   categoryLabel String?
-  name        String
-  amount      Float
-  spent       Float    @default(0.0)
-  currency    String   @default("INR")
-  monthStart  DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  name          String
+  amount        Float
+  spent         Float    @default(0.0)
+  currency      String   @default("INR")
+  monthStart    DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -234,7 +226,7 @@ model TransactionSource {
   id              String   @id @default(uuid())
   transactionId   String
   userId          String
-  source          String // SMS | EMAIL | API | MANUAL
+  source          String
   sourceTxnId     String?
   fingerprintHash String?
   rawPayload      String?
@@ -258,20 +250,72 @@ model SmsTemplate {
   id          String  @id @default(uuid())
   userId      String
   bankName    String
-  pattern     String // regex template
-  amountKey   String // capture group name
-  typeKey     String // DEBIT | CREDIT keyword
+  pattern     String
+  amountKey   String
+  typeKey     String
   merchantKey String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("sms_templates")
 }
 
 model SmsLog {
   id         String   @id @default(uuid())
   rawSms     String
-  parsedJson String? // JSON of extracted fields
+  parsedJson String?
   success    Boolean
   createdAt  DateTime @default(now())
+
   @@map("sms_logs")
+}
+
+// ─────────────────────────────────────────────
+// ACTIVITY LOG (Audit Trail / Feed)
+// ─────────────────────────────────────────────
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  groupId   String?
+  action    String   // CREATE_TRANSACTION | SETTLE_SPLIT | ADD_MEMBER | CREATE_GROUP | CREATE_RECURRING | etc.
+  entityId  String?
+  metadata  Json?    // { title, amount, currency, memberName, ... }
+  createdAt DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([groupId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+// ─────────────────────────────────────────────
+// RECURRING BILLS
+// ─────────────────────────────────────────────
+
+model RecurringBill {
+  id        String    @id @default(uuid())
+  userId    String
+  groupId   String?
+  title     String
+  amount    Float
+  currency  String    @default("INR")
+  category  String    @default("Bills")
+  frequency String    // WEEKLY | MONTHLY | YEARLY
+  nextDueAt DateTime
+  lastRunAt DateTime?
+  isActive  Boolean   @default(true)
+  splitWith Json?     // [{ userId, amountOwed }]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([nextDueAt, isActive])
+  @@index([userId])
+  @@map("recurring_bills")
 }
