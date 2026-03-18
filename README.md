@@ -1,6 +1,4 @@
-# CashSync
-
-> A unified personal finance and expense-splitting app — combining the power of transaction aggregation with intelligent group ledgering, wrapped in a modern, ultra-premium UI.
+# CashSync: Premium Finance & Shared Ledger Engine
 
 ![CashSync App UI Mockup](./docs/assets/cashsync_ui_mockup.png)
 
@@ -322,93 +320,67 @@ Run all scripts from the **project root** unless noted otherwise.
 
 ## 1. Vision & Core Concept
 
-**CashSync** is a unified personal finance and expense-splitting application. It is designed to bridge the gap between keeping track of individual spending, household bills, and group trip expenses. It takes the transaction aggregation of tools like _Walnut_ or _Mint_, combines it with the powerful ledgering of _Splitwise_, and wraps it in a modern, ultra-premium UI.
+**CashSync** is a unified, high-performance personal finance and expense-splitting ecosystem. It bridges the gap between individual spending tracking, recurring household bills, and group travel expenses. Combining the automation of tools like *Walnut* with the ledger stability of *Splitwise*, it offers a sleek, glass-morphic interface for modern financial management.
 
-> [!NOTE]
-> CashSync aims to automate as much as possible through SMS parsing and email receipts before rolling out heavier Bank API integrations.
+> [!IMPORTANT]
+> **Key Automation**: CashSync prioritizes frictionless data ingestion through localized SMS parsing (Banks/UPI) and Email receipt integration before expanding to heavier Bank API protocols.
 
 ---
 
 ## 2. Platforms & Tech Stack
 
-### Cross-Platform Architecture
+Designed for **Android, iOS, Windows, macOS, and Linux** using a unified monorepo architecture:
 
-To support **Android, iOS, Windows, macOS, and Linux**, a unified codebase strategy is required:
-
-- **Core Mobile (Android/iOS)**: React Native (via Expo).
-- **Core Web & Desktop (Windows/macOS/Linux)**: React Native Web / Next.js OR React with Electron/Tauri for native desktop behavior.
-- **Backend Infrastructure**:
-  - **Server**: Node.js with Express
-  - **Database**: PostgreSQL (Structured relationships like users, groups, transactions, splits)
-  - **Cache & Queues**: Redis (for parsing queues and fast lookups)
-  - **Deployment**: Vercel / AWS.
+- **Mobile Hub**: React Native (via Expo) for cross-platform excellence.
+- **Desktop & Web**: React Native Web / Next.js with optional Electron/Tauri shells.
+- **Backend Infrastructure**: 
+  - **Runtime**: Node.js + Express with modular feature architecture.
+  - **Data**: PostgreSQL (Prisma ORM) for relational integrity.
+  - **Caching**: Redis for ingestion queues and high-frequency lookups.
+- **Continuous Quality**: Integrated SonarCloud, ESLint, and GitHub Actions CI.
 
 ---
 
-## 3. Core Features Breakdown
+## 3. Core Feature Ecosystem
 
-### 1. Unified Authentication (OAuth Identity Linking)
+### 💎 1. Unified Identity System
+- **Provider-Aware Identity Linking**: Seamlessly merge Google and Apple OAuth accounts under a single email address.
+- **Zero-Password Friction**: Biometric-ready and OAuth-first for maximum security and speed.
 
-Users can log in via multiple providers seamlessly.
+### 💳 2. Smart Transaction Engine
+- **SMS/UPI Parsing**: Intelligent background receiver for major banking and UPI transaction alerts.
+- **Automated Categorization**: Rule-based engine that maps messy merchant strings (e.g., `SWIGGY*BANGALORE`) to clear labels.
+- **Smart Deduplication**: Composite fingerprinting (`Amount` + `Transaction ID` OR `Amount` + `Merchant` + `2m Time Window`) prevents triple-counting across SMS, Email, and Bank sources.
 
-- **Providers**: Google, Apple
-- **Identity Linking**: If a user logs in via Google today and Apple tomorrow with the same underlying email address, the accounts automatically merge into a single `User ID`.
-- **No Passwords**: Reduces friction and enhances security.
+### ⚖️ 3. The "Splitwise Killer" Split Engine
+Deeply integrated debt tracker supporting four precise splitting methods:
+- **EQUAL**: Default split for shared meals or rentals.
+- **EXACT**: Specify the precise amount each member owes.
+- **PERCENT**: Allocated by percentage contribution.
+- **SHARES**: Pro-rated splitting based on fractional ownership.
+- **Non-Group IOUs**: Track debts with friends outside of any formal group.
+- **Debt Simplification**: Advanced algorithm that minimizes the number of settlement routes needed within a group.
 
-### 2. Multi-Source Transaction Engine
+### 🏦 4. Multi-Currency Global Core
+- **Native Conversion**: Real-time currency normalization to your "Home Currency."
+- **Expenditure Indexing**: View total net worth and debt across multiple currencies with unified stats.
 
-Aggregates expenses from all connected sources automatically.
-
-- **SMS Parsing Module**: A background service (mainly for Android) that reads localized bank SMS templates to extract:
-  - Amount Debited/Credited
-  - Merchant/Tag
-  - Date and Time
-- **Email Parsing Module**: Uses Gmail/Outlook APIs safely to read transaction alerts and digital receipts.
-- **Bank API (Phase 2)**: Placeholder architecture for direct integration via Plaid / Salt Edge.
-
-> [!TIP]
-> **Smart Deduplication Engine**: To avoid duplicate entries across SMS, Email, and Bank API, CashSync will match `Amount` + `Transaction ID`. If ID is not present, it will use a composite fingerprint hash (`amount` + `fuzzy_date_within_2m` + `fuzzy_merchant`).
-
-### 3. Smart Expense Splitting (The "Splitwise Killer")
-
-A flexible debt tracker embedded directly inside the transaction feed.
-
-- **Privacy Toggle (Personal Use)**: Each transaction has a "Personal Use" toggle. If marked as personal, splitting options are completely hidden from the UI.
-- **Individual & Group Splitting**:
-  - Easily assign transaction fractions to specific individuals.
-  - Add transaction to previously created groups (e.g., "Goa Trip", "Apartment 4B").
-- **Split Methods**: Equals, By Exact Amounts, By Percentages, or By Shares.
-- **Settling Up**: Tracks who owes whom with simplified debt routes (minimizing the number of transactions needed to settle up within a group).
-
-### 4. Categorization & Renaming
-
-Make messy bank statements human-readable.
-
-- **Auto-Tagging**: Initial mapping via Regex/ML (e.g., "SWIGGY\*BANGALORE" -> "Food").
-- **Custom Labels & Renaming**: Users can rename transactions for easier tracking, and the system remembers these mappings for future entries.
+### 📊 5. Financial Health & Budgets
+- **Dynamic Budgets**: Set spending limits per category (e.g., "Food", "Transport") or overall monthly caps.
+- **Proactive Alerts**: Automatic notifications when category spending hits 80% or 100% of the budget.
+- **Insights Dashboard**: Visual breakdown of income vs. expense with top-category spending analytics.
 
 ---
 
-## 4. Design & Aesthetics
-
-The product must look and feel **modern, affluent, and heavily polished**.
-
-- **Theme**: True Dark Mode with vivid accent glows (e.g., Neon Green for credits/positive actions, Soft Purple for analytics).
-- **Material**: Heavy use of "Glassmorphism" inside cards, subtle border radiuses, and dynamic micro-interactions (hover states, spring animations).
-- **Typography**: Uncluttered, geometric sans-serif (e.g., _Inter_, _Outfit_, or _SF Pro Display_).
-- **Navigation**: Clean bottom tab bar on mobile, sleek sidebar on desktop.
-
----
-
-## 5. System Data Flow
+## 4. System Data Flow
 
 ```mermaid
 graph TD
-    A1[Bank SMS] --> B[Phone Parser Module]
+    A1[Bank SMS/UPI] --> B[Phone Parser Module]
     A2[Bank Alert Emails] --> C[Email Integration API]
-    A3[Manual Entry] --> D[App Client]
+    A3[Manual Entry] --> D[App Client Hub]
 
-    B --> E{Deduplication Engine}
+    B --> E{Smart Dedup Engine}
     C --> E
     D --> E
 
@@ -417,89 +389,63 @@ graph TD
 
     F --> G[Transactions View]
 
-    G -- Marked Personal --> H[Hide Split Options]
-    G -- Marked Shared --> I[Split Engine]
+    G -- Personal --> H[Privacy Guarded]
+    G -- Shared --> I[Split Engine]
 
     I --> J[Group Ledger]
-    I --> K[Individual Ledger]
+    I --> K[Direct IOU Balance]
 ```
 
-## 6. Project Rollout Phases
+---
 
-1. **Phase 1: Foundation & UI**
-   - Build out the React Native/Web application shells.
-   - Implement dark mode styling, UI components, and mock interactions.
-   - Setup OAuth identity linking (Google/Apple).
-2. **Phase 2: Data Ingestion Engine**
-   - Develop SMS Receiver (Android).
-   - Develop Manual entry flows.
-   - Implement the Smart Deduplication logic.
-3. **Phase 3: The Split Engine**
-   - Database schema for Groups, Debts, and Settlements.
-   - UI for selecting friends, splitting bills, and privacy toggling.
-4. **Phase 4: Multi-platform Polish**
-   - Wrap React Web logic via Electron for Windows/Linux/macOS native installers.
-   - Finalize Email integration and push notifications.
+## 5. Implementation Roadmap
+
+### ✅ Completed & Battle-Tested
+- [x] **Secure Auth**: Apple/Google OAuth with identity reconciliation.
+- [x] **Core Split Engine**: All 4 split methods + Debt Simplification.
+- [x] **Modular Parsing**: SMS receiver and merchant categorization rules.
+- [x] **Budgets**: Threshold monitoring and category-level tracking.
+- [x] **Insights**: Real-time stats and friend balance summaries.
+- [x] **Multi-Currency**: Unified normalization and conversion logic.
+
+### 🚀 Upcoming Features (Phase 4-5)
+- [ ] **OCR Receipt Scanner**: Extract amounts and line items from photos using Vision APIs.
+- [ ] **Recurring Bills Engine**: Automatic tracking and prediction for monthly subscriptions.
+- [ ] **Data Export Power-Tools**: Export financial snapshots in CSV/JSON/PDF formats.
+- [ ] **Real-time Push Notifications**: Instant alerts for group activity and settles.
+- [ ] **Advanced Bank API**: Direct ledger sync via Salt Edge or Plaid integration.
 
 ---
 
-## 7. Implemented MVP (Current Codebase)
+## 6. Local Setup (One Command)
 
-### Backend
-
-- User identity sync with provider-aware account linking (`/api/users/sync`)
-- Transaction ingestion + analytics (`/api/transactions`)
-- SMS parser + deduplication with fallback fingerprint hash (amount + 2-minute bucket + merchant signature)
-- Split support with methods: `EQUAL`, `EXACT`, `PERCENT`, `SHARES`
-- Group APIs:
-  - `GET /api/groups?userId=...`
-  - `POST /api/groups`
-  - `POST /api/groups/:id/members`
-  - `GET /api/groups/:id/ledger`
-  - `POST /api/groups/:id/settle`
-- Debt simplification in group ledger (minimized settle-up routes)
-
-### Frontend (Expo, mobile + web)
-
-- Auth screen with email/password and simulated OAuth flows
-- Home dashboard with analytics, quick actions, and premium dark UI
-- Transactions screen:
-  - filtering by type/category
-  - SMS ingestion modal
-  - rename/re-categorize transactions
-  - personal/shared toggle
-  - split assignment flow
-- New Groups screen:
-  - create groups
-  - add members by email
-  - view suggested settle-up routes
-  - settle from debtor side
-
-### Verified Build
-
-- Backend TypeScript build passes (`npm run build` in `backend`)
-- Frontend type-check passes (`npx tsc --noEmit` in `frontend`)
-- ESLint checks are available across backend + frontend (`npm run lint:check`)
-
----
-
-## Contributing
+Quick-start the entire infrastructure:
 
 We welcome contributions! Here's the recommended workflow:
 
-1. **Fork** the repository and create your branch from `main`:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-2. **Set up your local environment** following the [Local Development Setup](#-local-development-setup) section above.
-3. **Make your changes** and ensure:
-   - All tests pass: `cd backend && npm test`
-   - Lint is clean: `npm run lint:check` from the root
-   - TypeScript compiles: `cd backend && npm run build`
-4. **Commit** with a clear, descriptive message.
-5. **Push** your branch and open a **Pull Request** against `main`.
+Launch both development servers:
 
-For full architecture and endpoint reference, see:
+```bash
+npm run dev
+```
 
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
-- [`docs/CODE_QUALITY.md`](./docs/CODE_QUALITY.md) — ESLint + SonarCloud setup, CI integration, troubleshooting
+### Environment Configuration
+
+Configure your OAuth providers and API endpoints to enable real-world sync:
+
+**Backend (`backend/.env`):**
+- `DATABASE_URL`: PostgreSQL connection string.
+- `GOOGLE_CLIENT_IDS`: OAuth ID for Google Identity.
+- `APPLE_CLIENT_IDS`: OAuth ID for Apple Identity.
+
+**Frontend (`frontend/.env`):**
+- `EXPO_PUBLIC_API_URL`: Backend endpoint (default: `http://localhost:3000/api`).
+- `EXPO_PUBLIC_GOOGLE_CLIENT_ID`: Public Google OAuth key.
+
+---
+
+## 7. Documentation & Architecture
+
+For deeper technical deep-dives:
+- [Architecture & Data Flow](./docs/ARCHITECTURE.md)
+- [Code Quality & CI/CD](./docs/CODE_QUALITY.md)
