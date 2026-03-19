@@ -21,7 +21,7 @@ export const recurringRepository = {
         category: string;
         frequency: string;
         nextDueAt: Date;
-        splitWith?: unknown;
+        splitWith?: any;
     }) {
         return prisma.recurringBill.create({ data });
     },

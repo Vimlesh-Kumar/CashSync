@@ -7,7 +7,7 @@ export interface CreateActivityData {
     groupId?: string;
     action: string;
     entityId?: string;
-    metadata?: Record<string, unknown>;
+    metadata?: any;
 }
 
 export const activityRepository = {
@@ -18,7 +18,7 @@ export const activityRepository = {
                 groupId: data.groupId ?? null,
                 action: data.action,
                 entityId: data.entityId ?? null,
-                metadata: data.metadata ?? {},
+                metadata: data.metadata as any,
             },
             include: {
                 user: { select: { id: true, name: true, email: true, avatarUrl: true } },
