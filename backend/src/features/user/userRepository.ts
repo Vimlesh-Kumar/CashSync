@@ -17,6 +17,10 @@ export class UserRepository {
         return prisma.user.findUnique({ where: { email } });
     }
 
+    findByPhone(phone: string) {
+        return prisma.user.findUnique({ where: { phone } });
+    }
+
     findById(id: string) {
         return prisma.user.findUnique({
             where: { id },
@@ -42,7 +46,8 @@ export class UserRepository {
 
     create(data: {
         email: string;
-        name?: string;
+        phone?: string | null;
+        name?: string | null;
         provider: string;
         providerId?: string | null;
         password?: string | null;
@@ -55,7 +60,7 @@ export class UserRepository {
         return prisma.user.update({ where: { id }, data });
     }
 
-    updateProfile(id: string, data: { name?: string | null; avatarUrl?: string | null; defaultCurrency?: string }) {
+    updateProfile(id: string, data: { name?: string | null; avatarUrl?: string | null; phone?: string | null; defaultCurrency?: string }) {
         return prisma.user.update({
             where: { id },
             data,

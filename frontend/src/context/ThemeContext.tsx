@@ -20,6 +20,7 @@ export interface AppThemeColors {
   danger: string;
   warning: string;
   purple: string;
+  purpleSoft: string;
   input: string;
   gradient: [string, string, string];
 }
@@ -41,6 +42,7 @@ const darkColors: AppThemeColors = {
   danger: "#F87171",
   warning: "#FBBF24",
   purple: "#9B59F5",
+  purpleSoft: "rgba(155, 89, 245, 0.14)",
   input: "#0D1117",
   gradient: ["#0D1117", "#111827", "#0D1117"],
 };
@@ -60,6 +62,7 @@ const lightColors: AppThemeColors = {
   danger: "#DC2626",
   warning: "#D97706",
   purple: "#7C3AED",
+  purpleSoft: "rgba(124, 58, 237, 0.12)",
   input: "#FFFFFF",
   gradient: ["#F8FAFC", "#EEF4FF", "#F8FAFC"],
 };
