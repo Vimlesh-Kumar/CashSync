@@ -141,10 +141,14 @@ export const groupService = {
         if (!group) throw createHttpError(404, 'Group not found.');
 
         let resolvedUserId = data.userId;
-        if (!resolvedUserId && data.email) {
-            const user = await userRepository.findByEmail(data.email);
+        if (!resolvedUserId && (data.email || data.phone)) {
+            const user = data.email 
+                ? await userRepository.findByEmail(data.email)
+                : await userRepository.findByPhone(data.phone!);
+            
             if (!user) {
-                throw createHttpError(404, 'No user found with this email.');
+                // If not found, we throw a 404 with a specific message so frontend can handle invite
+                throw createHttpError(404, `User with ${data.email ? 'email' : 'phone'} not found.`);
             }
             resolvedUserId = user.id;
         }

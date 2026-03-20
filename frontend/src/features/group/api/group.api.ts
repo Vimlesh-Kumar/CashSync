@@ -61,7 +61,7 @@ export const createGroup = (data: {
     emoji?: string;
 }) => req('/groups', { method: 'POST', body: JSON.stringify(data) });
 
-export const addGroupMember = (groupId: string, data: { userId?: string; email?: string; role?: 'ADMIN' | 'MEMBER' }) =>
+export const addGroupMember = (groupId: string, data: { userId?: string; email?: string; phone?: string; role?: 'ADMIN' | 'MEMBER' }) =>
     req(`/groups/${groupId}/members`, { method: 'POST', body: JSON.stringify(data) });
 
 export const getGroupLedger = (groupId: string, userId?: string): Promise<GroupLedger> =>
