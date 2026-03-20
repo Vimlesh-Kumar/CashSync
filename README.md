@@ -407,11 +407,13 @@ graph TD
 - [x] **Budgets**: Threshold monitoring and category-level tracking.
 - [x] **Insights**: Real-time stats and friend balance summaries.
 - [x] **Multi-Currency**: Unified normalization and conversion logic.
+- [x] **Activity Log**: Persistent track of all group and personal mutations.
+- [x] **Recurring Bills**: Automated subscription tracking and projections.
+- [x] **Data Export**: Support for JSON and CSV transaction backups.
+- [x] **Live Currency Engine**: Native conversion with real-time exchange rates.
 
 ### 🚀 Upcoming Features (Phase 4-5)
 - [ ] **OCR Receipt Scanner**: Extract amounts and line items from photos using Vision APIs.
-- [ ] **Recurring Bills Engine**: Automatic tracking and prediction for monthly subscriptions.
-- [ ] **Data Export Power-Tools**: Export financial snapshots in CSV/JSON/PDF formats.
 - [ ] **Real-time Push Notifications**: Instant alerts for group activity and settles.
 - [ ] **Advanced Bank API**: Direct ledger sync via Salt Edge or Plaid integration.
 

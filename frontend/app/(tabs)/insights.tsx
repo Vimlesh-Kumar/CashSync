@@ -1,9 +1,11 @@
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,11 +25,12 @@ export default function InsightsScreen() {
   const [stats, setStats] = useState<TransactionStats | null>(null);
   const [budgets, setBudgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const summaryCurrency = normalizeCurrency(stats?.currency || user?.defaultCurrency);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setError(null);
 
     try {
       const [statsRes, budgetRes] = await Promise.all([
@@ -36,6 +39,8 @@ export default function InsightsScreen() {
       ]);
       setStats(statsRes);
       setBudgets(budgetRes);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load insights');
     } finally {
       setLoading(false);
     }
@@ -51,10 +56,32 @@ export default function InsightsScreen() {
     }, [load]),
   );
 
+  const summaryCurrency = normalizeCurrency(stats?.currency || user?.defaultCurrency);
+
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
+
+  if (error) {
+    const { signOut } = useAuth();
+    return (
+      <View style={styles.center}>
+        <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
+        <View style={styles.errorCard}>
+          <Ionicons name="alert-circle" size={48} color={colors.danger} />
+          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorSubtext}>This session may have expired or the user no longer exists.</Text>
+          <Pressable 
+            style={styles.retryBtn} 
+            onPress={() => signOut()}
+          >
+            <Text style={styles.retryBtnText}>Sign Out & Reset</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -165,4 +192,45 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) => Style
   },
   rowLabel: { color: colors.textMuted, fontWeight: '600' },
   rowValue: { color: colors.text, fontWeight: '700' },
+  errorCard: {
+    backgroundColor: colors.card,
+    borderRadius: 24,
+    padding: 32,
+    width: "90%",
+    maxWidth: 400,
+    alignItems: "center",
+    gap: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      web: { boxShadow: "0 20px 50px rgba(0,0,0,0.5)" },
+      default: { shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 },
+    }),
+  },
+  errorText: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  errorSubtext: {
+    color: colors.textMuted,
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  retryBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    marginTop: 8,
+    width: "100%",
+    alignItems: "center",
+  },
+  retryBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
 });

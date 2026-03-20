@@ -22,10 +22,11 @@ export const createGroupSchema = z.object({
 export const addGroupMemberSchema = z.object({
     userId: z.string().uuid('userId must be a valid UUID.').optional(),
     email: z.string().email('email must be valid.').optional(),
+    phone: z.string().optional(),
     role: z.enum(['ADMIN', 'MEMBER']).optional().default('MEMBER'),
 }).refine(
-    (data) => !!data.userId || !!data.email,
-    { message: 'Provide either userId or email.', path: ['userId'] }
+    (data) => !!data.userId || !!data.email || !!data.phone,
+    { message: 'Provide either userId, email, or phone.', path: ['userId'] }
 );
 
 export const listGroupsQuerySchema = z.object({

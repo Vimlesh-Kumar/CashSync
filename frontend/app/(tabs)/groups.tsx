@@ -1,4 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
+import * as Contacts from "expo-contacts";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -133,6 +134,10 @@ export default function GroupsScreen() {
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [memberEmail, setMemberEmail] = useState("");
+  const [contacts, setContacts] = useState<Contacts.Contact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [inviteUser, setInviteUser] = useState<{ identifier: string; type: "email" | "phone" } | null>(null);
 
   const selectedGroup = useMemo(
     () => groups.find((g) => g.id === selectedGroupId) || null,
@@ -174,6 +179,20 @@ export default function GroupsScreen() {
     }
   }, [user]);
 
+  const loadContacts = useCallback(async () => {
+    const { status } = await Contacts.requestPermissionsAsync();
+    if (status !== "granted") return;
+    setContactsLoading(true);
+    try {
+      const { data } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.Emails, Contacts.Fields.PhoneNumbers, Contacts.Fields.FirstName, Contacts.Fields.LastName],
+      });
+      setContacts(data.filter(c => (c.emails && c.emails.length > 0) || (c.phoneNumbers && c.phoneNumbers.length > 0)));
+    } finally {
+      setContactsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadGroups();
   }, [loadGroups]);
@@ -188,11 +207,73 @@ export default function GroupsScreen() {
     }, [loadGroups, loadLedger, loadFriends]),
   );
 
+  const addMemberByIdentifier = async (identifier: string, type: "email" | "phone") => {
+    if (!selectedGroupId || !identifier.trim()) return;
+    setInviteUser(null);
+    try {
+      await addGroupMember(selectedGroupId, { [type]: identifier.trim() });
+      setMemberEmail("");
+      await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
+    } catch (e: any) {
+      if (e.message.includes("not found")) {
+        setInviteUser({ identifier: identifier.trim(), type });
+      } else {
+        console.error(e);
+      }
+    }
+  };
+
+  const addEmailMember = (email: string) => addMemberByIdentifier(email, "email");
+
   const addMember = async () => {
-    if (!selectedGroupId || !memberEmail.trim()) return;
-    await addGroupMember(selectedGroupId, { email: memberEmail.trim() });
-    setMemberEmail("");
-    await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
+    const q = memberEmail.trim();
+    if (q.includes("@")) return addMemberByIdentifier(q, "email");
+    if (/^\+?[\d\s-]{8,}$/.test(q)) return addMemberByIdentifier(q, "phone");
+    return addMemberByIdentifier(q, "email");
+  };
+
+  const suggestions = useMemo(() => {
+    const q = memberEmail.trim().toLowerCase();
+    
+    // 1. Existing friends
+    let friends = friendBalances.map(f => ({ email: f.user.email, phone: undefined, name: f.user.name, type: "friend" as const }));
+
+    // 2. Local contacts
+    let locale = contacts
+      .flatMap(c => {
+        const items: { email?: string; phone?: string; name: string; type: "contact" }[] = [];
+        (c.emails || []).forEach(e => items.push({ email: e.email || "", name: c.name, type: "contact" as const }));
+        (c.phoneNumbers || []).forEach(p => items.push({ phone: p.number || "", name: c.name, type: "contact" as const }));
+        return items;
+      });
+
+    if (q) {
+      friends = friends.filter(f => f.email.toLowerCase().includes(q) || (f.name && f.name.toLowerCase().includes(q)));
+      locale = locale.filter(c => (c.email?.toLowerCase().includes(q)) || (c.phone?.toLowerCase().includes(q)) || (c.name.toLowerCase().includes(q)));
+    } else if (!isInputFocused) {
+      return [];
+    }
+
+    // Filter out duplicates and already added members
+    const existingMemberEmails = new Set(ledger?.members.map(m => m.user.email) || []);
+    
+    return [...friends, ...locale]
+      .filter(u => !existingMemberEmails.has(u.email || ""))
+      .filter((u, i, self) => self.findIndex(t => (t.email && t.email === u.email) || (t.phone && t.phone === u.phone)) === i) // Unique
+      .slice(0, q ? 5 : 8);
+  }, [memberEmail, friendBalances, contacts, isInputFocused, ledger?.members]);
+
+  const sendInvite = (identifier: string, style: "email" | "phone") => {
+    const msg = `Hey! Join me on Cashsync to split expenses easily. Download it now!`;
+    if (style === "phone") {
+      void import("react-native").then(({ Linking }) => {
+        void Linking.openURL(`sms:${identifier}?body=${encodeURIComponent(msg)}`);
+      });
+    } else {
+      void import("react-native").then(({ Linking }) => {
+        void Linking.openURL(`mailto:${identifier}?subject=Join Cashsync&body=${encodeURIComponent(msg)}`);
+      });
+    }
   };
 
   const settle = async (fromUserId: string, toUserId: string, amount: number, currency: string) => {
@@ -252,15 +333,64 @@ export default function GroupsScreen() {
 
         {selectedGroup && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Add Member by Email</Text>
-            <TextInput
-              style={styles.input}
-              value={memberEmail}
-              onChangeText={setMemberEmail}
-              placeholder="member@email.com"
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-            />
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={styles.cardTitle}>Add Member</Text>
+              {contacts.length === 0 && (
+                <Pressable onPress={loadContacts} disabled={contactsLoading}>
+                  <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "600" }}>
+                    {contactsLoading ? "Loading..." : "Sync Contacts"}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+            <View style={{ position: "relative", zIndex: 10 }}>
+              <TextInput
+                style={styles.input}
+                value={memberEmail}
+                onChangeText={setMemberEmail}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
+                placeholder="Name or email"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+              />
+              {suggestions.length > 0 && (
+                <View style={[styles.suggestionsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  {suggestions.map((s) => (
+                    <Pressable
+                      key={s.email || s.phone}
+                      style={styles.suggestionItem}
+                      onPress={() => s.email ? addMemberByIdentifier(s.email, "email") : addMemberByIdentifier(s.phone!, "phone")}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View style={[styles.avatar, { backgroundColor: s.type === "friend" ? colors.accentSoft : colors.purpleSoft }]}>
+                          <Text style={{ color: s.type === "friend" ? colors.accent : colors.purple, fontSize: 10, fontWeight: "700" }}>
+                            {s.type === "friend" ? "FR" : "CO"}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.suggestionName}>{s.name || (s.email || s.phone || "").split("@")[0]}</Text>
+                          <Text style={styles.suggestionEmail}>{s.email || s.phone}</Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {inviteUser && (
+              <View style={[styles.inviteCard, { backgroundColor: colors.accentSoft }]}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
+                  {inviteUser.identifier} is not on Cashsync yet.
+                </Text>
+                <Pressable onPress={() => sendInvite(inviteUser.identifier, inviteUser.type)}>
+                  <Text style={{ color: colors.accent, fontWeight: "800", fontSize: 13, marginTop: 4 }}>
+                    Invite via {inviteUser.type === "phone" ? "SMS" : "Email"} →
+                  </Text>
+                </Pressable>
+              </View>
+            )}
             <Pressable style={styles.primaryBtn} onPress={addMember}>
               <Text style={styles.primaryBtnText}>Add Member</Text>
             </Pressable>
@@ -455,5 +585,49 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       borderBottomWidth: 1,
       borderBottomColor: `${colors.border}66`,
       paddingVertical: 12,
+    },
+    suggestionsList: {
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      borderWidth: 1,
+      borderRadius: 12,
+      marginTop: 4,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 5,
+      zIndex: 100,
+    },
+    suggestionItem: {
+      padding: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: `${colors.border}33`,
+    },
+    suggestionName: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    suggestionEmail: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 2,
+    },
+    avatar: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    inviteCard: {
+      padding: 12,
+      borderRadius: 12,
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: "rgba(79, 142, 247, 0.2)",
     },
   });
