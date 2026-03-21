@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   Modal,
   Platform,
   Pressable,
@@ -22,7 +23,9 @@ import {
   getGroupLedger,
   getGroups,
   GroupLedger,
+  GroupSearchUser,
   GroupSummary,
+  searchGroupUsers,
   settleGroupDebt,
 } from "@/src/features/group";
 import { FriendBalanceSummary, getFriendBalances } from "@/src/features/transaction";
@@ -39,6 +42,15 @@ type CreateGroupModalProps = Readonly<{
   ownerId: string;
   onDone: () => void;
 }>;
+
+type MemberSuggestion = {
+  key: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  type: "db" | "contact";
+  user?: GroupSearchUser;
+};
 
 function CreateGroupModal({
   visible,
@@ -134,6 +146,10 @@ export default function GroupsScreen() {
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [memberEmail, setMemberEmail] = useState("");
+  const [searchResults, setSearchResults] = useState<GroupSearchUser[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<GroupSearchUser[]>([]);
+  const [addingSelectedUsers, setAddingSelectedUsers] = useState(false);
+  const [searchingUsers, setSearchingUsers] = useState(false);
   const [contacts, setContacts] = useState<Contacts.Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -211,7 +227,9 @@ export default function GroupsScreen() {
     if (!selectedGroupId || !identifier.trim()) return;
     setInviteUser(null);
     try {
-      await addGroupMember(selectedGroupId, { [type]: identifier.trim() });
+      await addGroupMember(selectedGroupId, type === "email"
+        ? { emails: [identifier.trim()] }
+        : { phones: [identifier.trim()] });
       setMemberEmail("");
       await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
     } catch (e: any) {
@@ -223,43 +241,129 @@ export default function GroupsScreen() {
     }
   };
 
+  const toggleSelectedUser = useCallback((candidate: GroupSearchUser) => {
+    setInviteUser(null);
+    setSelectedUsers((current) => {
+      const exists = current.some((item) => item.id === candidate.id);
+      if (exists) {
+        return current.filter((item) => item.id !== candidate.id);
+      }
+      return [...current, candidate];
+    });
+  }, []);
+
+  const removeSelectedUser = useCallback((userId: string) => {
+    setSelectedUsers((current) => current.filter((item) => item.id !== userId));
+  }, []);
+
   const addMember = async () => {
+    if (selectedUsers.length > 0) {
+      if (!selectedGroupId) return;
+      setAddingSelectedUsers(true);
+      setInviteUser(null);
+      try {
+        await addGroupMember(selectedGroupId, { userIds: selectedUsers.map((candidate) => candidate.id) });
+        setSelectedUsers([]);
+        setMemberEmail("");
+        setSearchResults([]);
+        dismissMemberSearch();
+        await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
+      } finally {
+        setAddingSelectedUsers(false);
+      }
+      return;
+    }
+
     const q = memberEmail.trim();
+    if (searchResults.length > 0) {
+      return;
+    }
+
     if (q.includes("@")) return addMemberByIdentifier(q, "email");
     if (/^\+?[\d\s-]{8,}$/.test(q)) return addMemberByIdentifier(q, "phone");
     return addMemberByIdentifier(q, "email");
   };
 
-  const suggestions = useMemo(() => {
+  const suggestions = useMemo<MemberSuggestion[]>(() => {
     const q = memberEmail.trim().toLowerCase();
-    
-    // 1. Existing friends
-    let friends = friendBalances.map(f => ({ email: f.user.email, phone: undefined, name: f.user.name, type: "friend" as const }));
+    const existingMemberIds = new Set(ledger?.members.map((m) => m.user.id) || []);
+    const existingMemberEmails = new Set(ledger?.members.map((m) => m.user.email.toLowerCase()) || []);
 
-    // 2. Local contacts
+    const dbUsers = searchResults
+      .filter((userItem) => !existingMemberIds.has(userItem.id))
+      .map((userItem) => ({
+        key: `db:${userItem.id}`,
+        name: userItem.name || [userItem.firstName, userItem.lastName].filter(Boolean).join(" ") || userItem.email.split("@")[0],
+        email: userItem.email,
+        phone: userItem.phone || undefined,
+        type: "db" as const,
+        user: userItem,
+      }));
+
     let locale = contacts
       .flatMap(c => {
-        const items: { email?: string; phone?: string; name: string; type: "contact" }[] = [];
-        (c.emails || []).forEach(e => items.push({ email: e.email || "", name: c.name, type: "contact" as const }));
-        (c.phoneNumbers || []).forEach(p => items.push({ phone: p.number || "", name: c.name, type: "contact" as const }));
+        const items: { key: string; email?: string; phone?: string; name: string; type: "contact" }[] = [];
+        (c.emails || []).forEach(e => items.push({ key: `contact-email:${e.email || ""}`, email: e.email || "", name: c.name, type: "contact" as const }));
+        (c.phoneNumbers || []).forEach(p => items.push({ key: `contact-phone:${p.number || ""}`, phone: p.number || "", name: c.name, type: "contact" as const }));
         return items;
       });
 
-    if (q) {
-      friends = friends.filter(f => f.email.toLowerCase().includes(q) || (f.name && f.name.toLowerCase().includes(q)));
-      locale = locale.filter(c => (c.email?.toLowerCase().includes(q)) || (c.phone?.toLowerCase().includes(q)) || (c.name.toLowerCase().includes(q)));
-    } else if (!isInputFocused) {
+    if (!q && !isInputFocused) {
       return [];
     }
 
-    // Filter out duplicates and already added members
-    const existingMemberEmails = new Set(ledger?.members.map(m => m.user.email) || []);
-    
-    return [...friends, ...locale]
-      .filter(u => !existingMemberEmails.has(u.email || ""))
-      .filter((u, i, self) => self.findIndex(t => (t.email && t.email === u.email) || (t.phone && t.phone === u.phone)) === i) // Unique
+    if (dbUsers.length > 0) {
+      return dbUsers.slice(0, q ? 5 : 8);
+    }
+
+    locale = locale.filter(c => {
+      if (!q) return true;
+      return (c.email?.toLowerCase().includes(q)) || (c.phone?.toLowerCase().includes(q)) || (c.name.toLowerCase().includes(q));
+    });
+
+    return [...dbUsers, ...locale]
+      .filter((item) => !item.email || !existingMemberEmails.has(item.email.toLowerCase()))
+      .filter((u, i, self) => self.findIndex(t => (t.email && t.email === u.email) || (t.phone && t.phone === u.phone) || t.key === u.key) === i)
       .slice(0, q ? 5 : 8);
-  }, [memberEmail, friendBalances, contacts, isInputFocused, ledger?.members]);
+  }, [contacts, isInputFocused, ledger?.members, memberEmail, searchResults, selectedUsers]);
+
+  const dismissMemberSearch = useCallback(() => {
+    setIsInputFocused(false);
+    setSearchResults([]);
+  }, []);
+
+  useEffect(() => {
+    const q = memberEmail.trim();
+    if (!selectedGroupId || q.length < 2) {
+      setSearchResults([]);
+      setSearchingUsers(false);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setSearchingUsers(true);
+      searchGroupUsers(q, { excludeGroupId: selectedGroupId, limit: 8 })
+        .then(setSearchResults)
+        .catch((error) => {
+          console.error(error);
+          setSearchResults([]);
+        })
+        .finally(() => setSearchingUsers(false));
+    }, 250);
+
+    return () => clearTimeout(timeoutId);
+  }, [memberEmail, selectedGroupId]);
+
+  useEffect(() => {
+    if (!isInputFocused) return;
+
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      dismissMemberSearch();
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [dismissMemberSearch, isInputFocused]);
 
   const sendInvite = (identifier: string, style: "email" | "phone") => {
     const msg = `Hey! Join me on Cashsync to split expenses easily. Download it now!`;
@@ -286,11 +390,48 @@ export default function GroupsScreen() {
     return map;
   }, [ledger]);
 
+  const renderSuggestions = () => {
+    if (suggestions.length === 0) return null;
+
+    return (
+      <View style={[styles.suggestionsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {suggestions.map((s) => {
+          const isSelected = s.type === "db" && selectedUsers.some((item) => item.id === s.user.id);
+          return (
+            <Pressable
+              key={s.key}
+              style={[styles.suggestionItem, isSelected && styles.suggestionItemSelected]}
+              onPress={() => s.type === "db" ? toggleSelectedUser(s.user) : s.email ? addMemberByIdentifier(s.email, "email") : addMemberByIdentifier(s.phone!, "phone")}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View style={[styles.avatar, { backgroundColor: s.type === "db" ? colors.accentSoft : colors.purpleSoft }]}>
+                  <Text style={{ color: s.type === "db" ? colors.accent : colors.purple, fontSize: 10, fontWeight: "700" }}>
+                    {s.type === "db" ? "DB" : "CO"}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.suggestionName}>{s.name || (s.email || s.phone || "").split("@")[0]}</Text>
+                  <Text style={styles.suggestionEmail}>{s.email || s.phone}</Text>
+                  {s.type === "db" && (
+                    <Text style={styles.suggestionMeta}>
+                      {isSelected ? "Selected" : ([s.user.firstName, s.user.lastName].filter(Boolean).join(" ") || "Cashsync user")}
+                    </Text>
+                  )}
+                </View>
+                {isSelected && <Text style={styles.selectedMark}>Selected</Text>}
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Groups</Text>
@@ -391,11 +532,11 @@ export default function GroupsScreen() {
 
         {selectedGroup && (
           <>
-            <View style={styles.card}>
+            <View style={[styles.card, styles.memberSearchCard]}>
               <View style={styles.sectionHeader}>
                 <View>
                   <Text style={styles.cardTitle}>Add People to {selectedGroup.name}</Text>
-                  <Text style={styles.mutedText}>Invite friends or sync contacts, just like a normal split app.</Text>
+                  <Text style={styles.mutedText}>Search Cashsync users by name, email, or mobile. Contacts still help for invites.</Text>
                 </View>
                 {contacts.length === 0 && (
                   <Pressable onPress={loadContacts} disabled={contactsLoading}>
@@ -405,39 +546,38 @@ export default function GroupsScreen() {
                   </Pressable>
                 )}
               </View>
-              <View style={{ position: "relative", zIndex: 10 }}>
+              <View style={styles.memberSearchWrap}>
                 <TextInput
                   style={styles.input}
                   value={memberEmail}
                   onChangeText={setMemberEmail}
                   onFocus={() => setIsInputFocused(true)}
-                  onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
                   placeholder="Name, email, or phone"
                   placeholderTextColor={colors.textMuted}
                   autoCapitalize="none"
                 />
-                {suggestions.length > 0 && (
-                  <View style={[styles.suggestionsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    {suggestions.map((s) => (
-                      <Pressable
-                        key={s.email || s.phone}
-                        style={styles.suggestionItem}
-                        onPress={() => s.email ? addMemberByIdentifier(s.email, "email") : addMemberByIdentifier(s.phone!, "phone")}
-                      >
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                          <View style={[styles.avatar, { backgroundColor: s.type === "friend" ? colors.accentSoft : colors.purpleSoft }]}>
-                            <Text style={{ color: s.type === "friend" ? colors.accent : colors.purple, fontSize: 10, fontWeight: "700" }}>
-                              {s.type === "friend" ? "FR" : "CO"}
+                {selectedUsers.length > 0 && (
+                  <View style={styles.selectedUsersWrap}>
+                    <Text style={styles.selectedUsersLabel}>Selected people</Text>
+                    <View style={styles.selectedUsersInline}>
+                      {selectedUsers.map((selectedUser) => (
+                        <Pressable key={selectedUser.id} onPress={() => removeSelectedUser(selectedUser.id)} hitSlop={8} style={styles.selectedUserPill}>
+                          <View style={styles.selectedUserAvatar}>
+                            <Text style={styles.selectedUserAvatarText}>
+                              {(selectedUser.name || selectedUser.email).slice(0, 1).toUpperCase()}
                             </Text>
                           </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.suggestionName}>{s.name || (s.email || s.phone || "").split("@")[0]}</Text>
-                            <Text style={styles.suggestionEmail}>{s.email || s.phone}</Text>
-                          </View>
-                        </View>
-                      </Pressable>
-                    ))}
+                          <Text style={styles.selectedUserName}>
+                            {selectedUser.name || [selectedUser.firstName, selectedUser.lastName].filter(Boolean).join(" ") || selectedUser.email}
+                          </Text>
+                          <Text style={styles.selectedUserRemove}>x</Text>
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
+                )}
+                {searchingUsers && memberEmail.trim().length >= 2 && (
+                  <Text style={styles.searchStatus}>Searching Cashsync users...</Text>
                 )}
               </View>
 
@@ -453,8 +593,18 @@ export default function GroupsScreen() {
                   </Pressable>
                 </View>
               )}
-              <Pressable style={styles.primaryBtn} onPress={addMember}>
-                <Text style={styles.primaryBtnText}>Add Person</Text>
+              <Pressable style={styles.primaryBtn} onPress={addMember} disabled={addingSelectedUsers}>
+                {addingSelectedUsers ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>
+                    {selectedUsers.length > 0
+                      ? `Save ${selectedUsers.length} Selected`
+                      : searchResults.length > 0
+                        ? "Select From List"
+                        : "Add Person"}
+                  </Text>
+                )}
               </Pressable>
             </View>
 
@@ -484,6 +634,19 @@ export default function GroupsScreen() {
           onDone={loadGroups}
         />
       )}
+
+      <Modal
+        visible={isInputFocused && suggestions.length > 0}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissMemberSearch}
+      >
+        <Pressable style={styles.searchModalOverlay} onPress={dismissMemberSearch}>
+          <Pressable style={[styles.searchModalCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}}>
+            {renderSuggestions()}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -522,6 +685,15 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       backgroundColor: colors.card,
       padding: 16,
       gap: 10,
+    },
+    memberSearchCard: {
+      position: "relative",
+      zIndex: 30,
+      elevation: 12,
+    },
+    memberSearchWrap: {
+      position: "relative",
+      zIndex: 40,
     },
     sectionHeader: {
       flexDirection: "row",
@@ -604,24 +776,17 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       paddingVertical: 12,
     },
     suggestionsList: {
-      position: "absolute",
-      top: "100%",
-      left: 0,
-      right: 0,
       borderWidth: 1,
       borderRadius: 12,
-      marginTop: 4,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 5,
-      zIndex: 100,
+      overflow: "hidden",
     },
     suggestionItem: {
       padding: 12,
       borderBottomWidth: 1,
       borderBottomColor: `${colors.border}33`,
+    },
+    suggestionItemSelected: {
+      backgroundColor: colors.accentSoft,
     },
     suggestionName: {
       color: colors.text,
@@ -632,6 +797,93 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       color: colors.textMuted,
       fontSize: 11,
       marginTop: 2,
+    },
+    suggestionMeta: {
+      color: colors.textMuted,
+      fontSize: 10,
+      marginTop: 2,
+    },
+    selectedMark: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    searchModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(9, 13, 20, 0.2)",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    searchModalCard: {
+      borderWidth: 1,
+      borderRadius: 16,
+      maxWidth: 720,
+      width: "100%",
+      alignSelf: "center",
+      maxHeight: "60%",
+      overflow: "hidden",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.14,
+      shadowRadius: 18,
+      elevation: 10,
+    },
+    searchStatus: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 6,
+      marginLeft: 2,
+    },
+    selectedUsersWrap: {
+      gap: 8,
+      marginTop: 10,
+    },
+    selectedUsersLabel: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: "700",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      marginBottom: 2,
+    },
+    selectedUsersInline: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 6,
+    },
+    selectedUserAvatar: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: colors.accentSoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    selectedUserAvatarText: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: "800",
+    },
+    selectedUserPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: colors.input,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    selectedUserName: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    selectedUserRemove: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: "700",
     },
     avatar: {
       width: 28,

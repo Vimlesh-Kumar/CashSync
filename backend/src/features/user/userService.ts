@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { oauthService } from "../../services/oauth.service";
 import { userRepository } from "./userRepository";
-import { AuthResponse, UpdateUserRequest } from "./userSchema";
+import { AuthResponse, SearchUsersQuery, UpdateUserRequest, UserSearchResult } from "./userSchema";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 const SALT_ROUNDS = 10;
@@ -22,6 +22,29 @@ function createHttpError(status: number, message: string): HttpError {
 export class UserService {
   async getAllUsers() {
     return await userRepository.findAll();
+  }
+
+  async searchUsers(query: SearchUsersQuery): Promise<UserSearchResult[]> {
+    const users = await userRepository.search(query.q, {
+      excludeGroupId: query.excludeGroupId,
+      limit: query.limit,
+    });
+
+    return users.map((user) => {
+      const parts = (user.name ?? "").trim().split(/\s+/).filter(Boolean);
+      const firstName = parts[0] ?? null;
+      const lastName = parts.length > 1 ? parts.slice(1).join(" ") : null;
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone ?? null,
+        avatarUrl: user.avatarUrl ?? null,
+        firstName,
+        lastName,
+      };
+    });
   }
 
   async getProfile(id: string) {

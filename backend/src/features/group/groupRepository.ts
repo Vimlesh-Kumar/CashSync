@@ -21,6 +21,11 @@ export const groupRepository = {
         });
     },
 
+    /**
+     * Find a group by its ID
+     * @param id - The ID of the group
+     * @returns The group
+     */
     findById(id: string) {
         return prisma.group.findUnique({
             where: { id },
@@ -55,6 +60,13 @@ export const groupRepository = {
         });
     },
 
+    /**
+     * Adds a member to a group with the specified role.
+     * @param groupId 
+     * @param userId 
+     * @param role 
+     * @returns 
+     */
     addMember(groupId: string, userId: string, role: 'ADMIN' | 'MEMBER') {
         return prisma.groupMember.create({
             data: { groupId, userId, role },

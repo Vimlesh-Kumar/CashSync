@@ -21,6 +21,16 @@ export interface GroupMember {
     user: { id: string; name?: string; email: string; avatarUrl?: string };
 }
 
+export interface GroupSearchUser {
+    id: string;
+    name?: string | null;
+    email: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+}
+
 export interface GroupSummary {
     id: string;
     name: string;
@@ -61,8 +71,18 @@ export const createGroup = (data: {
     emoji?: string;
 }) => req('/groups', { method: 'POST', body: JSON.stringify(data) });
 
-export const addGroupMember = (groupId: string, data: { userId?: string; email?: string; phone?: string; role?: 'ADMIN' | 'MEMBER' }) =>
+export const addGroupMember = (groupId: string, data: { userIds?: string[]; emails?: string[]; phones?: string[]; role?: 'ADMIN' | 'MEMBER' }) =>
     req(`/groups/${groupId}/members`, { method: 'POST', body: JSON.stringify(data) });
+
+export const searchGroupUsers = (
+    query: string,
+    options?: { excludeGroupId?: string; limit?: number }
+): Promise<GroupSearchUser[]> => {
+    const params = new URLSearchParams({ q: query });
+    if (options?.excludeGroupId) params.set('excludeGroupId', options.excludeGroupId);
+    if (options?.limit) params.set('limit', String(options.limit));
+    return req(`/users/search?${params.toString()}`);
+};
 
 export const getGroupLedger = (groupId: string, userId?: string): Promise<GroupLedger> =>
     req(`/groups/${groupId}/ledger${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);

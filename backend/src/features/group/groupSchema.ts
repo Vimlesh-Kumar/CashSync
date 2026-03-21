@@ -20,13 +20,13 @@ export const createGroupSchema = z.object({
 });
 
 export const addGroupMemberSchema = z.object({
-    userId: z.string().uuid('userId must be a valid UUID.').optional(),
-    email: z.string().email('email must be valid.').optional(),
-    phone: z.string().optional(),
+    userIds: z.array(z.string().uuid('Each userId must be a valid UUID.')).min(1, 'userIds must contain at least one user.').optional(),
+    emails: z.array(z.string().email('Each email must be valid.')).min(1, 'emails must contain at least one email.').optional(),
+    phones: z.array(z.string().min(1, 'Each phone must be valid.')).min(1, 'phones must contain at least one phone.').optional(),
     role: z.enum(['ADMIN', 'MEMBER']).optional().default('MEMBER'),
 }).refine(
-    (data) => !!data.userId || !!data.email || !!data.phone,
-    { message: 'Provide either userId, email, or phone.', path: ['userId'] }
+    (data) => !!data.userIds?.length || !!data.emails?.length || !!data.phones?.length,
+    { message: 'Provide either userIds, emails, or phones.', path: ['userIds'] }
 );
 
 export const listGroupsQuerySchema = z.object({

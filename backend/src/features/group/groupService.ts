@@ -136,31 +136,51 @@ export const groupService = {
         return group;
     },
 
+    /**
+     * Add a member to a group
+     * @param groupId - The ID of the group
+     * @param data - The data of the member to be added
+     * @returns The updated group
+     */
     async addMember(groupId: string, data: AddGroupMemberRequest) {
         const group = await groupRepository.findById(groupId);
         if (!group) throw createHttpError(404, 'Group not found.');
 
-        let resolvedUserId = data.userId;
-        if (!resolvedUserId && (data.email || data.phone)) {
-            const user = data.email 
-                ? await userRepository.findByEmail(data.email)
-                : await userRepository.findByPhone(data.phone!);
-            
-            if (!user) {
-                // If not found, we throw a 404 with a specific message so frontend can handle invite
-                throw createHttpError(404, `User with ${data.email ? 'email' : 'phone'} not found.`);
+        const resolvedUserIds = new Set<string>(data.userIds ?? []);
+
+        if (data.emails?.length) {
+            for (const email of data.emails) {
+                const user = await userRepository.findByEmail(email);
+                if (!user) throw createHttpError(404, 'User with email not found.');
+                resolvedUserIds.add(user.id);
             }
-            resolvedUserId = user.id;
         }
 
-        if (!resolvedUserId) {
+        if (data.phones?.length) {
+            for (const phone of data.phones) {
+                const user = await userRepository.findByPhone(phone);
+                if (!user) throw createHttpError(404, 'User with phone not found.');
+                resolvedUserIds.add(user.id);
+            }
+        }
+
+        if (!resolvedUserIds.size) {
             throw createHttpError(400, 'Unable to resolve user for membership.');
         }
 
-        const exists = group.members.some((m: any) => m.userId === resolvedUserId);
-        if (exists) throw createHttpError(409, 'User is already a group member.');
+        const existingMemberIds = new Set(group.members.map((member: any) => member.userId));
+        const duplicateIds = [...resolvedUserIds].filter((userId) => existingMemberIds.has(userId));
 
-        return groupRepository.addMember(groupId, resolvedUserId, data.role);
+        if (duplicateIds.length) {
+            throw createHttpError(409, 'One or more users are already group members.');
+        }
+
+        const createdMembers = [];
+        for (const userId of resolvedUserIds) {
+            createdMembers.push(await groupRepository.addMember(groupId, userId, data.role));
+        }
+
+        return createdMembers.length === 1 ? createdMembers[0] : createdMembers;
     },
 
     async getLedger(groupId: string, userId?: string) {

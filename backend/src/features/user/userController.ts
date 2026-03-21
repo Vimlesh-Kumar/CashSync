@@ -1,5 +1,5 @@
 import { BaseController } from '../../base/apiController';
-import type { SyncUserRequest, UpdateUserRequest } from './userSchema';
+import type { SearchUsersQuery, SyncUserRequest, UpdateUserRequest } from './userSchema';
 import { userService } from './userService';
 
 class UserController extends BaseController {
@@ -14,6 +14,16 @@ class UserController extends BaseController {
       return this.ok(users);
     },
     'Failed to fetch users.'
+  );
+
+  searchUsers = this.handle(
+    'searchUsers',
+    async (ctx) => {
+      const parsedQuery = (ctx.request as typeof ctx.request & { validatedQuery?: SearchUsersQuery }).validatedQuery;
+      const users = await userService.searchUsers((parsedQuery ?? ctx.query) as SearchUsersQuery);
+      return this.ok(users);
+    },
+    'Failed to search users.'
   );
 
   getProfile = this.handle(

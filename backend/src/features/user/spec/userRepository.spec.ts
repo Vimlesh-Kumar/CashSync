@@ -43,6 +43,21 @@ describe('UserRepository', () => {
     });
   });
 
+  describe('search', () => {
+    it('should call prisma findMany with search filters', async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+      await userRepository.search('john doe', { excludeGroupId: 'g1', limit: 5 });
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        take: 5,
+        select: expect.objectContaining({
+          id: true,
+          email: true,
+          phone: true,
+        }),
+      }));
+    });
+  });
+
   describe('create', () => {
     it('should call prisma create', async () => {
         const data = { email: 'a@b.com', provider: 'JWT' };

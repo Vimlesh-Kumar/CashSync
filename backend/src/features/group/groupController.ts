@@ -31,6 +31,74 @@ class GroupController extends BaseController {
     'Failed to create group.',
   );
 
+  /**
+   * @swagger
+   * /api/groups/{id}/members:
+   *   post:
+   *     summary: Add a member to a group
+   *     parameters:
+   *       - name: id
+   *         in: path
+   *         required: true
+   *         schema:
+   *           type: string
+   *       - name: body
+   *         in: body
+   *         required: true
+   *         schema:
+   *           type: object
+   *           properties:
+   *             userId:
+   *               type: string
+   *             email:
+   *               type: string
+   *     responses:
+   *       201:
+   *         description: Member added successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 id:
+   *                   type: string
+   *                 name:
+   *                   type: string
+   *                 email:
+   *                   type: string
+   *                 balance:
+   *                   type: number
+   *                 createdAt:
+   *                   type: string
+   *                 updatedAt:
+   *                   type: string
+   *       400:
+   *         description: Invalid request
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 error:
+   *                   type: string
+   *                 details:
+   *                   type: array
+   *                   items:
+   *                     type: string
+   *       500:
+   *         description: Internal server error
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 error:
+   *                   type: string
+   *                 details:
+   *                   type: array
+   *                   items:
+   *                     type: string
+   */
   addMember = this.handle(
     'addMember',
     async (ctx) => {
