@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   BackHandler,
   Modal,
   Platform,
@@ -20,13 +21,17 @@ import { useAppTheme } from "@/src/context/ThemeContext";
 import {
   addGroupMember,
   createGroup,
+  deleteGroup,
   getGroupLedger,
   getGroups,
   GroupLedger,
   GroupSearchUser,
   GroupSummary,
+  removeGroupMember,
   searchGroupUsers,
   settleGroupDebt,
+  updateGroup,
+  updateGroupMember,
 } from "@/src/features/group";
 import { FriendBalanceSummary, getFriendBalances } from "@/src/features/transaction";
 import { formatCurrency, formatCurrencyLabel } from "@/src/lib/currency";
@@ -40,6 +45,13 @@ type CreateGroupModalProps = Readonly<{
   visible: boolean;
   onClose: () => void;
   ownerId: string;
+  onDone: () => void;
+}>;
+
+type EditGroupModalProps = Readonly<{
+  visible: boolean;
+  onClose: () => void;
+  group: GroupSummary;
   onDone: () => void;
 }>;
 
@@ -65,7 +77,6 @@ function CreateGroupModal({
   const [emoji, setEmoji] = useState("");
 
   const handleEmojiChange = (text: string) => {
-    // Limit to 1 visible grapheme cluster (handles multi-codepoint emojis ✈️, 🛍️, etc.)
     const segments = [...new Intl.Segmenter().segment(text)];
     setEmoji(segments.length > 0 ? segments[0]!.segment : "");
   };
@@ -133,6 +144,83 @@ function CreateGroupModal({
   );
 }
 
+function EditGroupModal({
+  visible,
+  onClose,
+  group,
+  onDone,
+}: EditGroupModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const [name, setName] = useState(group.name);
+  const [description, setDescription] = useState(group.description || "");
+  const [emoji, setEmoji] = useState(group.emoji || "");
+
+  const handleEmojiChange = (text: string) => {
+    const segments = [...new Intl.Segmenter().segment(text)];
+    setEmoji(segments.length > 0 ? segments[0]!.segment : "");
+  };
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!name.trim()) return;
+    setLoading(true);
+    try {
+      await updateGroup(group.id, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        emoji: emoji.trim() || undefined,
+      });
+      onDone();
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalSheet}>
+          <Text style={styles.title}>Edit Group</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Name"
+            placeholderTextColor={colors.textMuted}
+            value={name}
+            onChangeText={setName}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Description"
+            placeholderTextColor={colors.textMuted}
+            value={description}
+            onChangeText={setDescription}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Emoji"
+            placeholderTextColor={colors.textMuted}
+            value={emoji}
+            onChangeText={handleEmojiChange}
+            maxLength={8}
+          />
+
+          <View style={styles.rowGap}>
+            <Pressable style={styles.secondaryBtn} onPress={onClose}>
+              <Text style={styles.secondaryBtnText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={[styles.primaryBtn, { flex: 1.6 }]} onPress={submit} disabled={loading}>
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+
 export default function GroupsScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
@@ -145,6 +233,7 @@ export default function GroupsScreen() {
   const [loadingLedger, setLoadingLedger] = useState(false);
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
   const [memberEmail, setMemberEmail] = useState("");
   const [searchResults, setSearchResults] = useState<GroupSearchUser[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<GroupSearchUser[]>([]);
@@ -154,6 +243,65 @@ export default function GroupsScreen() {
   const [contactsLoading, setContactsLoading] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [inviteUser, setInviteUser] = useState<{ identifier: string; type: "email" | "phone" } | null>(null);
+
+  const handleDeleteGroup = () => {
+    if (!selectedGroupId) return;
+    Alert.alert(
+      "Delete Group",
+      "Are you sure you want to delete this group? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await deleteGroup(selectedGroupId);
+              setSelectedGroupId(null);
+              await loadGroups();
+            } catch (e) {
+              console.error(e);
+            }
+          } 
+        },
+      ]
+    );
+  };
+
+  const handleUpdateMemberRole = async (userId: string, role: 'ADMIN' | 'MEMBER') => {
+    if (!selectedGroupId) return;
+    try {
+      await updateGroupMember(selectedGroupId, userId, { role });
+      await Promise.all([loadGroups(), loadLedger()]);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRemoveMember = (userId: string) => {
+    if (!selectedGroupId) return;
+    Alert.alert(
+      "Remove Member",
+      "Are you sure you want to remove this member?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Remove", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await removeGroupMember(selectedGroupId, userId);
+              await Promise.all([loadGroups(), loadLedger()]);
+            } catch (e) {
+              console.error(e);
+            }
+          } 
+        },
+      ]
+    );
+  };
+
+
 
   const selectedGroup = useMemo(
     () => groups.find((g) => g.id === selectedGroupId) || null,
@@ -396,12 +544,12 @@ export default function GroupsScreen() {
     return (
       <View style={[styles.suggestionsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {suggestions.map((s) => {
-          const isSelected = s.type === "db" && selectedUsers.some((item) => item.id === s.user.id);
+          const isSelected = s.type === "db" && s.user && selectedUsers.some((item) => item.id === s.user?.id);
           return (
             <Pressable
               key={s.key}
               style={[styles.suggestionItem, isSelected && styles.suggestionItemSelected]}
-              onPress={() => s.type === "db" ? toggleSelectedUser(s.user) : s.email ? addMemberByIdentifier(s.email, "email") : addMemberByIdentifier(s.phone!, "phone")}
+              onPress={() => s.user ? toggleSelectedUser(s.user) : s.email ? addMemberByIdentifier(s.email, "email") : addMemberByIdentifier(s.phone!, "phone")}
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <View style={[styles.avatar, { backgroundColor: s.type === "db" ? colors.accentSoft : colors.purpleSoft }]}>
@@ -412,7 +560,7 @@ export default function GroupsScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.suggestionName}>{s.name || (s.email || s.phone || "").split("@")[0]}</Text>
                   <Text style={styles.suggestionEmail}>{s.email || s.phone}</Text>
-                  {s.type === "db" && (
+                  {s.type === "db" && s.user && (
                     <Text style={styles.suggestionMeta}>
                       {isSelected ? "Selected" : ([s.user.firstName, s.user.lastName].filter(Boolean).join(" ") || "Cashsync user")}
                     </Text>
@@ -422,6 +570,7 @@ export default function GroupsScreen() {
               </View>
             </Pressable>
           );
+
         })}
       </View>
     );
@@ -609,19 +758,63 @@ export default function GroupsScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>{selectedGroup.name} Balances</Text>
-              {ledger?.balances.map((b) => {
-                const person = membersById.get(b.userId);
+              <View style={styles.sectionHeader}>
+                <Text style={styles.cardTitle}>{selectedGroup.name} Balances</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable 
+                    style={[styles.secondaryBtn, { paddingHorizontal: 10, paddingVertical: 6 }]} 
+                    onPress={() => setOpenEdit(true)}
+                  >
+                    <Text style={[styles.secondaryBtnText, { fontSize: 12 }]}>Edit</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={[styles.secondaryBtn, { paddingHorizontal: 10, paddingVertical: 6, borderColor: colors.danger }]} 
+                    onPress={handleDeleteGroup}
+                  >
+                    <Text style={[styles.secondaryBtnText, { fontSize: 12, color: colors.danger }]}>Delete</Text>
+                  </Pressable>
+                </View>
+              </View>
+              {ledger?.members.map((m) => {
+                const b = ledger.balances.find((balance) => balance.userId === m.userId);
+                const isMe = user?.id === m.userId;
                 return (
-                  <View key={b.userId} style={styles.balanceRow}>
-                    <Text style={styles.memberName}>{personName(person)}</Text>
-                    <Text style={{ color: b.net >= 0 ? colors.success : colors.danger, fontWeight: "700" }}>
-                      {b.net >= 0 ? "+" : ""}{formatCurrency(b.net, b.currency)}
-                    </Text>
+                  <View key={m.userId} style={styles.balanceRow}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.memberName}>{personName(m.user)}</Text>
+                        <View style={[styles.roleBadge, { backgroundColor: m.role === 'ADMIN' ? colors.accentSoft : colors.border }]}>
+                          <Text style={[styles.roleText, { color: m.role === 'ADMIN' ? colors.accent : colors.textMuted }]}>
+                            {m.role}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.mutedText, { color: (b?.net ?? 0) >= 0 ? colors.success : colors.danger }]}>
+                        {(b?.net ?? 0) >= 0 ? "+" : ""}{formatCurrency(b?.net ?? 0, b?.currency ?? ledger.currency)}
+                      </Text>
+                    </View>
+                    
+                    {!isMe && (
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable 
+                          style={styles.actionIcon} 
+                          onPress={() => handleUpdateMemberRole(m.userId, m.role === 'ADMIN' ? 'MEMBER' : 'ADMIN')}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.accent }}>ROLE</Text>
+                        </Pressable>
+                        <Pressable 
+                          style={styles.actionIcon} 
+                          onPress={() => handleRemoveMember(m.userId)}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.danger }}>REMOVE</Text>
+                        </Pressable>
+                      </View>
+                    )}
                   </View>
                 );
               })}
             </View>
+
           </>
         )}
       </ScrollView>
@@ -634,6 +827,16 @@ export default function GroupsScreen() {
           onDone={loadGroups}
         />
       )}
+
+      {selectedGroup && (
+        <EditGroupModal
+          visible={openEdit}
+          onClose={() => setOpenEdit(false)}
+          group={selectedGroup}
+          onDone={loadGroups}
+        />
+      )}
+
 
       <Modal
         visible={isInputFocused && suggestions.length > 0}
@@ -898,5 +1101,25 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       marginTop: 8,
       borderWidth: 1,
       borderColor: "rgba(79, 142, 247, 0.2)",
+    },
+    roleBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    roleText: {
+      fontSize: 9,
+      fontWeight: "800",
+      textTransform: "uppercase",
+    },
+    actionIcon: {
+      padding: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      minWidth: 40,
+      alignItems: "center",
+      justifyContent: "center",
     },
   });

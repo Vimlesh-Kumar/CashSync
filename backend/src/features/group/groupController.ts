@@ -5,6 +5,7 @@ import type {
   CreateGroupRequest,
   GetGroupLedgerQuery,
   SettleGroupDebtRequest,
+  UpdateGroupRequest,
 } from './groupSchema';
 
 class GroupController extends BaseController {
@@ -109,6 +110,67 @@ class GroupController extends BaseController {
     'Failed to add group member.',
   );
 
+  getById = this.handle(
+    'getById',
+    async (ctx) => {
+      const { id } = ctx.params as { id: string };
+      const group = await groupService.getById(id);
+      return this.ok(group);
+    },
+    'Failed to fetch group.',
+  );
+
+  update = this.handle(
+    'update',
+    async (ctx) => {
+      const { id } = ctx.params as { id: string };
+      const group = await groupService.update(id, ctx.body as UpdateGroupRequest);
+      return this.ok(group);
+    },
+    'Failed to update group.',
+  );
+
+  delete = this.handle(
+    'delete',
+    async (ctx) => {
+      const { id } = ctx.params as { id: string };
+      await groupService.delete(id);
+      return this.noContent();
+    },
+    'Failed to delete group.',
+  );
+
+  listMembers = this.handle(
+    'listMembers',
+    async (ctx) => {
+      const { id } = ctx.params as { id: string };
+      const members = await groupService.listMembers(id);
+      return this.ok(members);
+    },
+    'Failed to fetch group members.',
+  );
+
+  updateMember = this.handle(
+    'updateMember',
+    async (ctx) => {
+      const { id, userId } = ctx.params as { id: string; userId: string };
+      const { role } = ctx.body as { role: 'ADMIN' | 'MEMBER' };
+      const member = await groupService.updateMember(id, userId, role);
+      return this.ok(member);
+    },
+    'Failed to update group member.',
+  );
+
+  removeMember = this.handle(
+    'removeMember',
+    async (ctx) => {
+      const { id, userId } = ctx.params as { id: string; userId: string };
+      await groupService.removeMember(id, userId);
+      return this.noContent();
+    },
+    'Failed to remove group member.',
+  );
+
   getLedger = this.handle(
     'getLedger',
     async (ctx) => {
@@ -130,5 +192,6 @@ class GroupController extends BaseController {
     'Failed to settle debt.',
   );
 }
+
 
 export const groupController = new GroupController();

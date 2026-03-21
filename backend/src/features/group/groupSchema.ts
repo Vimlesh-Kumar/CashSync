@@ -48,7 +48,35 @@ export const settleGroupDebtSchema = z.object({
     currency: z.enum(SUPPORTED_CURRENCIES).optional(),
 });
 
+export const updateGroupSchema = z.object({
+    name: z.string().min(1, 'Name is required.').optional(),
+    description: z.string().optional(),
+    emoji: z
+        .string()
+        .refine(
+            (val) => {
+                const segmenter = new Intl.Segmenter();
+                const segments = [...segmenter.segment(val)];
+                return segments.length <= 2;
+            },
+            { message: 'Emoji must be a single emoji character.' }
+        )
+        .optional(),
+});
+
+export const updateGroupMemberSchema = z.object({
+    role: z.enum(['ADMIN', 'MEMBER']),
+});
+
+export const userIdParamsSchema = z.object({
+    id: z.string().uuid('Group ID must be a valid UUID.'),
+    userId: z.string().uuid('User ID must be a valid UUID.'),
+});
+
 export type CreateGroupRequest = z.infer<typeof createGroupSchema>;
+export type UpdateGroupRequest = z.infer<typeof updateGroupSchema>;
 export type AddGroupMemberRequest = z.infer<typeof addGroupMemberSchema>;
+export type UpdateGroupMemberRequest = z.infer<typeof updateGroupMemberSchema>;
 export type SettleGroupDebtRequest = z.infer<typeof settleGroupDebtSchema>;
 export type GetGroupLedgerQuery = z.infer<typeof getGroupLedgerQuerySchema>;
+

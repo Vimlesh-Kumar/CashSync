@@ -122,7 +122,73 @@ export const groupRepository = {
         });
     },
 
+    update(id: string, data: { name?: string; description?: string; emoji?: string }) {
+        return prisma.group.update({
+            where: { id },
+            data,
+            include: {
+                members: {
+                    include: {
+                        user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+                    },
+                },
+            },
+        });
+    },
+
+    delete(id: string) {
+        return prisma.group.delete({ where: { id } });
+    },
+
+    /**
+     * Lists all members of a group.
+     * @param groupId - The ID of the group
+     * @returns A list of group members
+     */
+    listMembers(groupId: string) {
+        return prisma.groupMember.findMany({
+            where: { groupId },
+            include: {
+                user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+            },
+        });
+    },
+
+    /**
+     * Updates a member's role in a group.
+     * @param groupId - The ID of the group
+     * @param userId - The ID of the user
+     * @param role - The new role (ADMIN or MEMBER)
+     * @returns The updated group member
+     */
+    updateMember(groupId: string, userId: string, role: 'ADMIN' | 'MEMBER') {
+        return prisma.groupMember.update({
+            where: {
+                userId_groupId: { userId, groupId },
+            },
+            data: { role },
+            include: {
+                user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+            },
+        });
+    },
+
+    /**
+     * Removes a member from a group.
+     * @param groupId - The ID of the group
+     * @param userId - The ID of the user
+     * @returns The removed group member
+     */
+    removeMember(groupId: string, userId: string) {
+        return prisma.groupMember.delete({
+            where: {
+                userId_groupId: { userId, groupId },
+            },
+        });
+    },
+
     updateSplit(id: string, data: { amountPaid: number; isSettled: boolean; settledAt?: Date }) {
         return prisma.split.update({ where: { id }, data });
     },
+
 };

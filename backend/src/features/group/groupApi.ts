@@ -8,6 +8,9 @@ import {
   groupIdParamsSchema,
   listGroupsQuerySchema,
   settleGroupDebtSchema,
+  updateGroupSchema,
+  updateGroupMemberSchema,
+  userIdParamsSchema,
 } from './groupSchema';
 
 function validateBody(schema: ZodSchema) {
@@ -48,8 +51,18 @@ const router = Router();
 
 router.get('/', validateQuery(listGroupsQuerySchema), groupController.list);
 router.post('/', validateBody(createGroupSchema), groupController.create);
+router.get('/:id', validateParams(groupIdParamsSchema), groupController.getById);
+router.put('/:id', validateParams(groupIdParamsSchema), validateBody(updateGroupSchema), groupController.update);
+router.delete('/:id', validateParams(groupIdParamsSchema), groupController.delete);
+
+// Member management
+router.get('/:id/members', validateParams(groupIdParamsSchema), groupController.listMembers);
 router.post('/:id/members', validateParams(groupIdParamsSchema), validateBody(addGroupMemberSchema), groupController.addMember);
+router.put('/:id/members/:userId', validateParams(userIdParamsSchema), validateBody(updateGroupMemberSchema), groupController.updateMember);
+router.delete('/:id/members/:userId', validateParams(userIdParamsSchema), groupController.removeMember);
+
 router.get('/:id/ledger', validateParams(groupIdParamsSchema), validateQuery(getGroupLedgerQuerySchema), groupController.getLedger);
 router.post('/:id/settle', validateParams(groupIdParamsSchema), validateBody(settleGroupDebtSchema), groupController.settle);
+
 
 export default router;

@@ -1,6 +1,6 @@
 import { groupRepository } from './groupRepository';
 import { convertAmount, DEFAULT_CURRENCY, normalizeCurrency, type CurrencyCode } from '../../lib/currency';
-import { AddGroupMemberRequest, CreateGroupRequest, SettleGroupDebtRequest } from './groupSchema';
+import { AddGroupMemberRequest, CreateGroupRequest, SettleGroupDebtRequest, UpdateGroupRequest } from './groupSchema';
 import { userRepository } from '../user/userRepository';
 import { activityService } from '../activity/activityService';
 
@@ -245,7 +245,89 @@ export const groupService = {
         };
     },
 
+    /**
+     * Get a group by its ID
+     * @param id - The ID of the group
+     * @returns The group
+     */
+    async getById(id: string) {
+        const group = await groupRepository.findById(id);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return group;
+    },
+
+    /**
+     * Update a group's information
+     * @param id - The ID of the group
+     * @param data - The data to update
+     * @returns The updated group
+     */
+    async update(id: string, data: UpdateGroupRequest) {
+        const group = await groupRepository.findById(id);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return groupRepository.update(id, data);
+    },
+
+    /**
+     * Delete a group
+     * @param id - The ID of the group
+     * @returns The deleted group
+     */
+    async delete(id: string) {
+        const group = await groupRepository.findById(id);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return groupRepository.delete(id);
+    },
+
+    /**
+     * List all members of a group
+     * @param groupId - The ID of the group
+     * @returns A list of group members
+     */
+    async listMembers(groupId: string) {
+        const group = await groupRepository.findById(groupId);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return groupRepository.listMembers(groupId);
+    },
+
+    /**
+     * Update a member's role in a group
+     * @param groupId - The ID of the group
+     * @param userId - The ID of the user
+     * @param role - The new role (ADMIN or MEMBER)
+     * @returns The updated group member
+     */
+    async updateMember(groupId: string, userId: string, role: 'ADMIN' | 'MEMBER') {
+        const group = await groupRepository.findById(groupId);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return groupRepository.updateMember(groupId, userId, role);
+    },
+
+    /**
+     * Remove a member from a group
+     * @param groupId - The ID of the group
+     * @param userId - The ID of the user
+     * @returns The removed group member
+     */
+    async removeMember(groupId: string, userId: string) {
+        const group = await groupRepository.findById(groupId);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        
+        // Ensure at least one admin remains if the user being removed is an admin
+        const members = await groupRepository.listMembers(groupId);
+        const memberToRemove = members.find((m: any) => m.userId === userId);
+        if (memberToRemove?.role === 'ADMIN') {
+            const adminCount = members.filter((m: any) => m.role === 'ADMIN').length;
+            if (adminCount <= 1) {
+                throw createHttpError(400, 'Cannot remove the last admin from a group.');
+            }
+        }
+        
+        return groupRepository.removeMember(groupId, userId);
+    },
+
     async settleRoute(groupId: string, payload: SettleGroupDebtRequest) {
+
         const { fromUserId, toUserId, amount } = payload;
         let remaining = amount;
 
