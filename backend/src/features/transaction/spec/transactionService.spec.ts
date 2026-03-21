@@ -13,6 +13,7 @@ vi.mock('../transactionRepository', () => ({
     findByHash: vi.fn(),
     findCategoryRules: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
     saveSplitConfig: vi.fn(),
     markAsPersonal: vi.fn(),
     createSmsLog: vi.fn(),
@@ -90,6 +91,15 @@ describe('TransactionService', () => {
         vi.mocked(transactionRepository.update).mockResolvedValue({} as any);
         await transactionService.update('tx1', { reviewState: 'SPLIT' });
         expect(transactionRepository.update).toHaveBeenCalledWith('tx1', expect.objectContaining({ isPersonal: false }));
+    });
+  });
+
+  describe('delete', () => {
+    it('should delete transaction by id', async () => {
+        vi.mocked(transactionRepository.delete).mockResolvedValue({ id: 'tx1' } as any);
+        const res = await transactionService.delete('tx1');
+        expect(transactionRepository.delete).toHaveBeenCalledWith('tx1');
+        expect(res).toEqual({ id: 'tx1' });
     });
   });
 

@@ -20,6 +20,7 @@ import { getGroups, GroupSummary } from "@/src/features/group";
 import {
   addSplits,
   createTransaction,
+  deleteTransaction,
   getFriendBalances,
   getTransactions,
   ingestSms,
@@ -373,6 +374,7 @@ type RenameModalProps = Readonly<{
   onClose: () => void;
   onSaved: () => void;
   onOpenSplit: (tx: Transaction) => void;
+  onDeleted: () => void;
 }>;
 
 function RenameModal({
@@ -380,6 +382,7 @@ function RenameModal({
   onClose,
   onSaved,
   onOpenSplit,
+  onDeleted,
 }: RenameModalProps) {
   const [title, setTitle] = useState(tx.title);
   const [note, setNote] = useState(tx.note || "");
@@ -410,6 +413,18 @@ function RenameModal({
         groupId: null,
       });
       onSaved();
+      onClose();
+    } catch {
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteTx = async () => {
+    setLoading(true);
+    try {
+      await deleteTransaction(tx.id);
+      onDeleted();
       onClose();
     } catch {
     } finally {
@@ -566,6 +581,11 @@ function RenameModal({
             <Pressable style={smsS.cancelBtn} onPress={onClose}>
               <Text style={{ color: MUTED, fontWeight: "600" }}>Cancel</Text>
             </Pressable>
+            <Pressable style={[smsS.cancelBtn, { borderColor: RED + "44", backgroundColor: RED + "14" }]} onPress={deleteTx} disabled={loading}>
+               <Text style={{ color: RED, fontWeight: "600" }}>Delete</Text>
+            </Pressable>
+          </View>
+          <View style={{ marginTop: 2 }}>
             <Pressable
               style={[
                 smsS.submitBtn,
@@ -1341,6 +1361,7 @@ export default function ExploreScreen() {
           onClose={() => setEditTx(null)}
           onSaved={fetch}
           onOpenSplit={(tx) => setSplitTx(tx)}
+          onDeleted={fetch}
         />
       )}
       {splitTx && (

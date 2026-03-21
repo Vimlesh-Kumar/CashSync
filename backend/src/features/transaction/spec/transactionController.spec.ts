@@ -7,6 +7,7 @@ vi.mock('../transactionService', () => ({
     getAll: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
     ingestSms: vi.fn(),
     addSplits: vi.fn(),
     settleSplit: vi.fn(),
@@ -64,6 +65,14 @@ describe('TransactionController', () => {
     vi.mocked(transactionService.ingestSms).mockResolvedValue({ id: 't2' } as any);
     await transactionController.ingestSms(mockReq, mockRes, vi.fn());
     expect(transactionService.ingestSms).toHaveBeenCalledWith('Rs 100 spent', 'u1');
+  });
+
+  it('should delete transaction', async () => {
+    mockReq.params = { id: 't1' };
+    vi.mocked(transactionService.delete).mockResolvedValue({ id: 't1' } as any);
+    await transactionController.delete(mockReq, mockRes, vi.fn());
+    expect(transactionService.delete).toHaveBeenCalledWith('t1');
+    expect(mockRes.status).toHaveBeenCalledWith(200);
   });
 
   it('should get stats', async () => {

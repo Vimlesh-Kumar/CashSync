@@ -19,7 +19,7 @@ import { getStats, TransactionStats } from '@/src/features/transaction';
 import { formatCurrency, normalizeCurrency } from '@/src/lib/currency';
 
 export default function InsightsScreen() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [stats, setStats] = useState<TransactionStats | null>(null);
@@ -67,7 +67,6 @@ export default function InsightsScreen() {
   }
 
   if (error) {
-    const { signOut } = useAuth();
     return (
       <View style={styles.center}>
         <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />

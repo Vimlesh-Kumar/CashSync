@@ -120,6 +120,9 @@ export const updateTransaction = async (
     }
 ): Promise<Transaction> => req(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
+export const deleteTransaction = async (id: string): Promise<{ success: boolean }> =>
+    req(`/transactions/${id}`, { method: 'DELETE' });
+
 export const ingestSms = async (rawSms: string, authorId: string): Promise<Transaction & { deduplicated?: boolean }> =>
     req('/transactions/sms', { method: 'POST', body: JSON.stringify({ rawSms, authorId }) });
 

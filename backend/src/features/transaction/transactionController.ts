@@ -67,6 +67,16 @@ class TransactionController extends BaseController {
     'Failed to update transaction.',
   );
 
+  delete = this.handle(
+    'delete',
+    async (ctx) => {
+      const { id } = ctx.params as { id: string };
+      await transactionService.delete(id);
+      return this.ok({ success: true });
+    },
+    'Failed to delete transaction.',
+  );
+
   ingestSms = this.handle(
     'ingestSms',
     async (ctx) => {

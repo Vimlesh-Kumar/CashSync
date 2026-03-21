@@ -26,7 +26,7 @@ import {
   updateRecurringBill,
 } from "@/src/features/activity/api/activity.api";
 
-const FREQ_OPTIONS: Array<{ key: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+const FREQ_OPTIONS: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: "WEEKLY", label: "Weekly", icon: "calendar-outline" },
   { key: "MONTHLY", label: "Monthly", icon: "calendar-number-outline" },
   { key: "YEARLY", label: "Yearly", icon: "calendar-clear-outline" },
@@ -179,7 +179,7 @@ export default function RecurringScreen() {
           <View style={styles.empty}>
             <Ionicons name="repeat-outline" size={48} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>No recurring bills</Text>
-            <Text style={styles.emptyText}>Set up rent, subscriptions, or any regular expense and we'll create it automatically.</Text>
+            <Text style={styles.emptyText}>Set up rent, subscriptions, or any regular expense and we&apos;ll create it automatically.</Text>
             <Pressable style={styles.emptyBtn} onPress={() => setShowModal(true)}>
               <Text style={styles.emptyBtnText}>Get started</Text>
             </Pressable>

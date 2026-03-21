@@ -16,7 +16,6 @@ import {
 import { useAuth } from "@/src/context/AuthContext";
 import { useAppTheme } from "@/src/context/ThemeContext";
 import {
-  createTransaction,
   getStats,
   getTransactions,
   Transaction,
@@ -42,7 +41,7 @@ function getCategoryMeta(cat: string) {
 }
 
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
@@ -94,7 +93,6 @@ export default function HomeScreen() {
   }
 
   if (error) {
-    const { signOut } = useAuth();
     return (
       <View style={styles.center}>
         <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
