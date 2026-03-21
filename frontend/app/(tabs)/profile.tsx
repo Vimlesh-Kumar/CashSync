@@ -1,3 +1,5 @@
+import * as Contacts from "expo-contacts";
+import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -21,7 +23,14 @@ import { createBudget, getBudgets, updateBudget } from "@/src/features/budget";
 import { CategoryItem, createCategory, getCategories } from "@/src/features/category";
 import { updateUser } from "@/src/features/user";
 import { getExportUrl, getLiveRates, LiveRates } from "@/src/features/activity/api/activity.api";
-import { formatCurrency, normalizeCurrency, SUPPORTED_CURRENCIES } from "@/src/lib/currency";
+import {
+  getSmsAutoSyncEnabled,
+  getSmsPermissionState,
+  requestSmsPermission,
+  setSmsAutoSyncEnabled,
+  SmsPermissionState,
+} from "@/src/features/transaction/smsAutoSync";
+import { formatCurrency, inferCurrencyFromCountry, normalizeCurrency, SUPPORTED_CURRENCIES } from "@/src/lib/currency";
 
 const BUILT_IN_BUDGET_CATEGORIES = [
   "Food & Groceries",
@@ -42,6 +51,21 @@ type BudgetCategoryOption = {
   categoryId: string | null;
 };
 
+type PermissionState = "unknown" | "granted" | "denied";
+
+function formatPermissionState(state: PermissionState) {
+  if (state === "granted") return "Granted";
+  if (state === "denied") return "Denied";
+  return "Not requested";
+}
+
+function formatSmsPermissionState(state: SmsPermissionState) {
+  if (state === "granted") return "Granted";
+  if (state === "denied") return "Denied";
+  if (state === "unsupported") return "Android only";
+  return "Not requested";
+}
+
 export default function ProfileScreen() {
   const { user, signOut, updateCurrentUser } = useAuth();
   const { colors, preference, setPreference } = useAppTheme();
@@ -56,6 +80,12 @@ export default function ProfileScreen() {
   const [selectedBudgetCategoryName, setSelectedBudgetCategoryName] = useState<string | null>(null);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [savingDefaultCurrency, setSavingDefaultCurrency] = useState(false);
+  const [locationPermission, setLocationPermission] = useState<PermissionState>("unknown");
+  const [contactsPermission, setContactsPermission] = useState<PermissionState>("unknown");
+  const [permissionLoading, setPermissionLoading] = useState<"location" | "contacts" | null>(null);
+  const [smsPermission, setSmsPermission] = useState<SmsPermissionState>("unknown");
+  const [smsAutoSyncEnabled, setSmsAutoSyncState] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [liveRates, setLiveRates] = useState<LiveRates | null>(null);
   const [ratesLoading, setRatesLoading] = useState(false);
@@ -82,6 +112,46 @@ export default function ProfileScreen() {
       void load();
     }, [load]),
   );
+
+  useEffect(() => {
+    let active = true;
+    const loadPermissionState = async () => {
+      try {
+        const [locationRes, contactsRes] = await Promise.all([
+          Location.getForegroundPermissionsAsync(),
+          Contacts.getPermissionsAsync(),
+        ]);
+        if (!active) return;
+        setLocationPermission(locationRes.status === "granted" ? "granted" : locationRes.status === "denied" ? "denied" : "unknown");
+        setContactsPermission(contactsRes.status === "granted" ? "granted" : contactsRes.status === "denied" ? "denied" : "unknown");
+      } catch {
+      }
+    };
+    void loadPermissionState();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadSmsState = async () => {
+      try {
+        const [enabled, permission] = await Promise.all([
+          getSmsAutoSyncEnabled(),
+          getSmsPermissionState(),
+        ]);
+        if (!active) return;
+        setSmsAutoSyncState(enabled);
+        setSmsPermission(permission);
+      } catch {
+      }
+    };
+    void loadSmsState();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const budgetCategoryOptions: BudgetCategoryOption[] = [
     ...BUILT_IN_BUDGET_CATEGORIES.map((name) => ({
@@ -117,6 +187,100 @@ export default function ProfileScreen() {
     setSelectedBudgetCategoryName(budget.category?.name ?? budget.categoryLabel ?? null);
   };
 
+  const applyDefaultCurrency = useCallback(async (currency: string) => {
+    if (!user) return;
+    await updateUser(user.id, { defaultCurrency: currency });
+    await updateCurrentUser({ defaultCurrency: currency });
+  }, [updateCurrentUser, user]);
+
+  const requestLocationCurrency = useCallback(async () => {
+    if (!user) return;
+    try {
+      setPermissionLoading("location");
+      const permission = await Location.requestForegroundPermissionsAsync();
+      const nextState: PermissionState =
+        permission.status === "granted" ? "granted" : permission.status === "denied" ? "denied" : "unknown";
+      setLocationPermission(nextState);
+      if (permission.status !== "granted") {
+        Alert.alert("Location not granted", "CashSync could not access your location, so your currency was not changed.");
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const places = await Location.reverseGeocodeAsync(position.coords);
+      const countryCode = places[0]?.isoCountryCode ?? null;
+      const inferredCurrency = inferCurrencyFromCountry(countryCode);
+      await applyDefaultCurrency(inferredCurrency);
+      Alert.alert(
+        "Default currency updated",
+        countryCode
+          ? `CashSync detected ${countryCode} and set your default currency to ${inferredCurrency}.`
+          : `CashSync updated your default currency to ${inferredCurrency}.`,
+      );
+    } catch (error) {
+      console.error("Failed to update default currency from location", error);
+      Alert.alert("Could not use location", "Please try again or choose a currency manually.");
+    } finally {
+      setPermissionLoading(null);
+    }
+  }, [applyDefaultCurrency, user]);
+
+  const requestContactsPermission = useCallback(async () => {
+    try {
+      setPermissionLoading("contacts");
+      const permission = await Contacts.requestPermissionsAsync();
+      const nextState: PermissionState =
+        permission.status === "granted" ? "granted" : permission.status === "denied" ? "denied" : "unknown";
+      setContactsPermission(nextState);
+      if (permission.status === "granted") {
+        Alert.alert("Contacts enabled", "You can now sync contacts from the Groups tab to find friends faster.");
+      } else {
+        Alert.alert("Contacts not granted", "CashSync cannot suggest friends from your address book until you allow contacts access.");
+      }
+    } catch (error) {
+      console.error("Failed to request contacts permission", error);
+      Alert.alert("Could not request contacts access", "Please try again.");
+    } finally {
+      setPermissionLoading(null);
+    }
+  }, []);
+
+  const toggleSmsAutoSync = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      Alert.alert("Android only", "Incoming SMS auto-sync requires Android and a development build.");
+      return;
+    }
+
+    try {
+      setSmsLoading(true);
+      if (smsAutoSyncEnabled) {
+        await setSmsAutoSyncEnabled(false);
+        setSmsAutoSyncState(false);
+        Alert.alert("SMS auto-sync disabled", "CashSync will stop listening for new bank SMS messages.");
+        return;
+      }
+
+      const granted = await requestSmsPermission();
+      const nextPermission = await getSmsPermissionState();
+      setSmsPermission(granted ? "granted" : nextPermission === "unknown" ? "denied" : nextPermission);
+      if (!granted) {
+        Alert.alert("SMS permission not granted", "CashSync needs SMS access on Android to auto-detect incoming bank messages.");
+        return;
+      }
+
+      await setSmsAutoSyncEnabled(true);
+      setSmsAutoSyncState(true);
+      Alert.alert("SMS auto-sync enabled", "CashSync will listen for new incoming Android SMS messages and try to ingest supported bank alerts automatically.");
+    } catch (error) {
+      console.error("Failed to toggle SMS auto-sync", error);
+      Alert.alert("Could not update SMS auto-sync", "Please try again.");
+    } finally {
+      setSmsLoading(false);
+    }
+  }, [smsAutoSyncEnabled]);
+
   if (!user) return null;
 
   return (
@@ -146,8 +310,7 @@ export default function ProfileScreen() {
                     if (selected) return;
                     try {
                       setSavingDefaultCurrency(true);
-                      await updateUser(user.id, { defaultCurrency: currency });
-                      await updateCurrentUser({ defaultCurrency: currency });
+                      await applyDefaultCurrency(currency);
                     } finally {
                       setSavingDefaultCurrency(false);
                     }
@@ -158,6 +321,78 @@ export default function ProfileScreen() {
               );
             })}
           </ScrollView>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Permissions</Text>
+          <Text style={styles.helperText}>
+            Allow CashSync to use location for country currency detection and contacts for friend suggestions.
+          </Text>
+
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionCopy}>
+              <Text style={styles.permissionTitle}>Location to set default currency</Text>
+              <Text style={styles.permissionMeta}>Status: {formatPermissionState(locationPermission)}</Text>
+            </View>
+            <Pressable
+              style={styles.actionBtn}
+              disabled={permissionLoading === "location"}
+              onPress={() => {
+                void requestLocationCurrency();
+              }}
+            >
+              {permissionLoading === "location" ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.actionBtnText}>Use Location</Text>
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionCopy}>
+              <Text style={styles.permissionTitle}>Contacts to sync friends</Text>
+              <Text style={styles.permissionMeta}>Status: {formatPermissionState(contactsPermission)}</Text>
+            </View>
+            <Pressable
+              style={styles.actionBtn}
+              disabled={permissionLoading === "contacts"}
+              onPress={() => {
+                void requestContactsPermission();
+              }}
+            >
+              {permissionLoading === "contacts" ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.actionBtnText}>Enable Contacts</Text>
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionCopy}>
+              <Text style={styles.permissionTitle}>Messages for auto-sync</Text>
+              <Text style={styles.permissionMeta}>
+                Status: {formatSmsPermissionState(smsPermission)} · {smsAutoSyncEnabled ? "Auto-sync on" : "Auto-sync off"}
+              </Text>
+              <Text style={styles.permissionMeta}>
+                Android dev build only. CashSync keeps clipboard auto-detect and can now listen for new incoming bank SMS messages when enabled.
+              </Text>
+            </View>
+            <Pressable
+              style={styles.actionBtn}
+              disabled={smsLoading}
+              onPress={() => {
+                void toggleSmsAutoSync();
+              }}
+            >
+              {smsLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.actionBtnText}>{smsAutoSyncEnabled ? "Disable SMS" : "Enable SMS"}</Text>
+              )}
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -467,6 +702,39 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
     },
     cardTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
     helperText: { color: colors.textMuted, fontSize: 12 },
+    permissionRow: {
+      flexDirection: "row",
+      gap: 12,
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 12,
+      backgroundColor: colors.input,
+    },
+    permissionCopy: {
+      flex: 1,
+      gap: 4,
+    },
+    permissionTitle: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    permissionMeta: {
+      color: colors.textMuted,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    permissionNotice: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 12,
+      backgroundColor: colors.input,
+      gap: 4,
+    },
     selectorRow: { flexDirection: "row", gap: 8, paddingBottom: 2 },
     chip: {
       borderRadius: 999,
@@ -602,4 +870,3 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
     rateCode: { color: colors.textMuted, fontSize: 10, fontWeight: "700" },
     rateValue: { color: colors.text, fontSize: 13, fontWeight: "800" },
   });
-

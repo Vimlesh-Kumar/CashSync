@@ -1,9 +1,11 @@
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
+import { ingestSms } from "@/src/features/transaction";
+import { beginSmsListener, getSmsAutoSyncEnabled } from "@/src/features/transaction/smsAutoSync";
 import { ThemeProvider, useAppTheme } from "@/src/context/ThemeContext";
 import * as SystemUI from "expo-system-ui";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ActivityIndicator, View } from "react-native";
 
 import AuthScreen from "./index";
@@ -72,10 +74,49 @@ export default function RootLayout() {
 
 function RootShell() {
   const { resolvedTheme, colors } = useAppTheme();
+  const { user } = useAuth();
+  const recentMessagesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(colors.background);
   }, [colors.background]);
+
+  useEffect(() => {
+    let active = true;
+    let stopListening: (() => void) | undefined;
+
+    const wireSmsAutoSync = async () => {
+      if (!user) return;
+
+      const enabled = await getSmsAutoSyncEnabled();
+      if (!active || !enabled) return;
+
+      stopListening = await beginSmsListener(async (rawSms) => {
+        if (!active || !user) return;
+        if (recentMessagesRef.current.has(rawSms)) return;
+
+        recentMessagesRef.current.add(rawSms);
+        setTimeout(() => {
+          recentMessagesRef.current.delete(rawSms);
+        }, 60_000);
+
+        try {
+          await ingestSms(rawSms, user.id);
+        } catch (error) {
+          console.warn("SMS auto-sync failed", error);
+        }
+      }, (message) => {
+        console.warn("SMS listener error", message);
+      });
+    };
+
+    void wireSmsAutoSync();
+
+    return () => {
+      active = false;
+      stopListening?.();
+    };
+  }, [user]);
 
   return (
     <>
