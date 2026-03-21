@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -12,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { useAuth } from "@/src/context/AuthContext";
 import { ThemePreference, useAppTheme } from "@/src/context/ThemeContext";
@@ -335,33 +337,35 @@ export default function ProfileScreen() {
 
         {/* ─── Export Data ─── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>📤 Export Data</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="cloud-download-outline" size={22} color={colors.text} />
+            <Text style={styles.cardTitle}>Export Data</Text>
+          </View>
           <Text style={styles.helperText}>Download all your transactions for backup or analysis.</Text>
           <View style={styles.row}>
             <Pressable
               id="export-json-btn"
-              style={[styles.exportBtn, { flex: 1 }]}
+              style={[styles.exportBtn, { flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 8 }]}
               onPress={async () => {
                 if (!user) return;
                 const url = getExportUrl(user.id, 'json');
-                // On native: open in browser. On web: anchor click
-                const { Linking } = await import('react-native');
                 await Linking.openURL(url);
               }}
             >
-              <Text style={styles.exportBtnText}>📋 JSON</Text>
+              <Ionicons name="document-text-outline" size={18} color={colors.text} />
+              <Text style={styles.exportBtnText}>JSON</Text>
             </Pressable>
             <Pressable
               id="export-csv-btn"
-              style={[styles.exportBtn, { flex: 1, backgroundColor: `${colors.accent}22`, borderColor: colors.accent }]}
+              style={[styles.exportBtn, { flex: 1, backgroundColor: `${colors.accent}22`, borderColor: colors.accent, flexDirection: 'row', justifyContent: 'center', gap: 8 }]}
               onPress={async () => {
                 if (!user) return;
                 const url = getExportUrl(user.id, 'csv');
-                const { Linking } = await import('react-native');
                 await Linking.openURL(url);
               }}
             >
-              <Text style={[styles.exportBtnText, { color: colors.accent }]}>📊 CSV</Text>
+              <Ionicons name="stats-chart-outline" size={18} color={colors.accent} />
+              <Text style={[styles.exportBtnText, { color: colors.accent }]}>CSV</Text>
             </Pressable>
           </View>
         </View>
@@ -369,7 +373,10 @@ export default function ProfileScreen() {
         {/* ─── Live Exchange Rates ─── */}
         <View style={styles.card}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={styles.cardTitle}>💱 Exchange Rates</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="cash-outline" size={22} color={colors.text} />
+              <Text style={styles.cardTitle}>Exchange Rates</Text>
+            </View>
             <Pressable
               id="load-rates-btn"
               style={[styles.actionBtn, { paddingHorizontal: 12, paddingVertical: 8 }]}

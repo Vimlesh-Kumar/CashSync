@@ -1,4 +1,7 @@
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+import { NativeModules } from 'react-native';
+const scriptURL = NativeModules.SourceCode?.scriptURL || '';
+const localIp = scriptURL ? scriptURL.split('//')[1].split(':')[0] : 'localhost';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || `http://${localIp}:3000/api`;
 
 async function req<T>(url: string, options?: RequestInit): Promise<T> {
     const res = await fetch(`${API_URL}${url}`, {

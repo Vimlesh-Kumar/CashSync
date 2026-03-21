@@ -38,6 +38,7 @@ const router = Router();
 router.get('/', transactionController.getAll);
 router.post('/', validateBody(createTransactionSchema), transactionController.create);
 router.patch('/:id', validateBody(updateTransactionSchema), transactionController.update);
+router.delete('/:id', transactionController.delete);
 router.post('/sms', validateBody(ingestSmsSchema), transactionController.ingestSms);
 router.post('/:id/splits', validateBody(addSplitsSchema), transactionController.addSplits);
 router.patch('/splits/:splitId/settle', transactionController.settleSplit);

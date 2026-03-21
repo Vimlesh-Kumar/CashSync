@@ -10,6 +10,7 @@ vi.mock('../../../lib/db', () => ({
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
     split: {
       deleteMany: vi.fn(),
@@ -57,6 +58,11 @@ describe('TransactionRepository', () => {
   it('should update transaction', async () => {
     await transactionRepository.update('t1', { title: 'New' });
     expect(prisma.transaction.update).toHaveBeenCalled();
+  });
+
+  it('should delete transaction', async () => {
+    await transactionRepository.delete('t1');
+    expect(prisma.transaction.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
   });
 
   it('should markAsPersonal', async () => {

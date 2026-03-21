@@ -123,6 +123,10 @@ export const transactionRepository = {
         });
     },
 
+    delete(id: string) {
+        return prisma.transaction.delete({ where: { id } });
+    },
+
     markAsPersonal(id: string, data: { title?: string; note?: string; category?: string; currency?: string }) {
         return prisma.$transaction(async (tx: any) => {
             await tx.split.deleteMany({ where: { transactionId: id } });

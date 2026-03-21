@@ -197,6 +197,10 @@ export const transactionService = {
         });
     },
 
+    async delete(id: string) {
+        return transactionRepository.delete(id);
+    },
+
     async ingestSms(rawSms: string, authorId: string) {
         const parsed = parseSms(rawSms);
 

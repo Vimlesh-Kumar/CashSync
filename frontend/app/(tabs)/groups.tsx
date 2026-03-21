@@ -223,8 +223,6 @@ export default function GroupsScreen() {
     }
   };
 
-  const addEmailMember = (email: string) => addMemberByIdentifier(email, "email");
-
   const addMember = async () => {
     const q = memberEmail.trim();
     if (q.includes("@")) return addMemberByIdentifier(q, "email");

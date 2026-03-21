@@ -4,13 +4,13 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/context/AuthContext";
 import { useAppTheme } from "@/src/context/ThemeContext";
 import {
@@ -18,17 +18,17 @@ import {
   getActivityForUser,
 } from "@/src/features/activity/api/activity.api";
 
-const ACTION_META: Record<string, { icon: string; label: string; color: string }> = {
-  CREATE_TRANSACTION:  { icon: "💸", label: "Added expense",        color: "#EF4444" },
-  SETTLE_SPLIT:        { icon: "✅", label: "Settled up",           color: "#22C55E" },
-  ADD_MEMBER:          { icon: "👤", label: "Added member",         color: "#6366F1" },
-  CREATE_GROUP:        { icon: "🔗", label: "Created group",        color: "#0EA5E9" },
-  CREATE_RECURRING:    { icon: "🔁", label: "Set up recurring bill", color: "#F59E0B" },
-  RECURRING_TRIGGERED: { icon: "⚡", label: "Recurring bill fired", color: "#F97316" },
+const ACTION_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; label: string; color: string }> = {
+  CREATE_TRANSACTION:  { icon: "cash-outline", label: "Added expense",        color: "#EF4444" },
+  SETTLE_SPLIT:        { icon: "checkmark-circle-outline", label: "Settled up",           color: "#22C55E" },
+  ADD_MEMBER:          { icon: "person-add-outline", label: "Added member",         color: "#6366F1" },
+  CREATE_GROUP:        { icon: "people-outline", label: "Created group",        color: "#0EA5E9" },
+  CREATE_RECURRING:    { icon: "repeat-outline", label: "Set up recurring bill", color: "#F59E0B" },
+  RECURRING_TRIGGERED: { icon: "flash-outline", label: "Recurring bill fired", color: "#F97316" },
 };
 
 function friendlyAction(action: string) {
-  return ACTION_META[action] ?? { icon: "📋", label: action.replace(/_/g, " ").toLowerCase(), color: "#64748B" };
+  return ACTION_META[action] ?? { icon: "document-text-outline" as keyof typeof Ionicons.glyphMap, label: action.replace(/_/g, " ").toLowerCase(), color: "#64748B" };
 }
 
 function timeAgo(dateStr: string) {
@@ -81,7 +81,7 @@ export default function ActivityScreen() {
           <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
         ) : logs.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>📭</Text>
+            <Ionicons name="mail-unread-outline" size={48} color={colors.textMuted} />
             <Text style={styles.emptyText}>No activity yet. Start splitting expenses!</Text>
           </View>
         ) : (
@@ -92,7 +92,7 @@ export default function ActivityScreen() {
               return (
                 <View key={log.id} style={styles.logRow}>
                   <View style={[styles.iconBadge, { backgroundColor: `${color}22` }]}>
-                    <Text style={styles.icon}>{icon}</Text>
+                    <Ionicons name={icon} size={20} color={color} />
                   </View>
                   <View style={styles.logContent}>
                     <Text style={styles.logLabel}>
