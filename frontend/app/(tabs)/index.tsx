@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 
+import { CurrencyFlag } from "@/src/components/CurrencyFlag";
 import { useAuth } from "@/src/context/AuthContext";
 import { useAppTheme } from "@/src/context/ThemeContext";
 import {
@@ -142,6 +143,10 @@ export default function HomeScreen() {
 
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Net Balance</Text>
+          <View style={styles.balanceCurrencyRow}>
+            <CurrencyFlag currency={summaryCurrency} size={16} />
+            <Text style={styles.balanceCurrency}>{normalizeCurrency(summaryCurrency)}</Text>
+          </View>
           <Text style={[styles.balanceValue, { color: netBalance >= 0 ? colors.text : colors.danger }]}> 
             {formatCurrency(Math.abs(netBalance), summaryCurrency)}
           </Text>
@@ -256,6 +261,8 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       gap: 8,
     },
     balanceLabel: { color: colors.textMuted, fontWeight: "600" },
+    balanceCurrencyRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    balanceCurrency: { color: colors.accent, fontWeight: "700", fontSize: 12 },
     balanceValue: { fontSize: 34, fontWeight: "800" },
     metricsRow: {
       marginTop: 8,

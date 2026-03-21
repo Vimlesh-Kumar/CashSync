@@ -26,7 +26,7 @@ import {
   settleGroupDebt,
 } from "@/src/features/group";
 import { FriendBalanceSummary, getFriendBalances } from "@/src/features/transaction";
-import { formatCurrency } from "@/src/lib/currency";
+import { formatCurrency, formatCurrencyLabel } from "@/src/lib/currency";
 
 function personName(user?: { id: string; name?: string; email: string }) {
   if (!user) return "User";
@@ -293,148 +293,12 @@ export default function GroupsScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Groups & Split</Text>
-            <Text style={styles.subtitle}>Optimized settle-up for every trip or household</Text>
+            <Text style={styles.title}>Groups</Text>
+            <Text style={styles.subtitle}>Create groups, add people, and manage shared circles</Text>
           </View>
           <Pressable style={styles.addBtn} onPress={() => setOpenCreate(true)}>
             <Text style={styles.addBtnText}>+ Group</Text>
           </Pressable>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator color={colors.accent} />
-        ) : groups.length === 0 ? (
-          <View style={styles.card}><Text style={styles.mutedText}>No groups yet. Create your first one.</Text></View>
-        ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-            {groups.map((group) => (
-              <Pressable
-                key={group.id}
-                onPress={() => setSelectedGroupId(group.id)}
-                style={[styles.groupCard, selectedGroupId === group.id && styles.groupCardActive]}
-              >
-                <Text style={styles.groupName}>{group.emoji ? `${group.emoji} ` : ""}{group.name}</Text>
-                <Text style={styles.groupMeta}>{group.members.length} members</Text>
-                <Text style={[styles.balanceLine, { color: colors.danger }]}>
-                  You owe: {formatCurrency(group.stats.youOwe, group.stats.currency)}
-                </Text>
-                <Text style={[styles.balanceLine, { color: colors.success }]}>
-                  You are owed: {formatCurrency(group.stats.youAreOwed, group.stats.currency)}
-                </Text>
-                <Text style={[styles.balanceLine, { color: group.stats.net >= 0 ? colors.success : colors.danger }]}>
-                  Net: {formatCurrency(group.stats.net, group.stats.currency)}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-
-        {selectedGroup && (
-          <View style={styles.card}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={styles.cardTitle}>Add Member</Text>
-              {contacts.length === 0 && (
-                <Pressable onPress={loadContacts} disabled={contactsLoading}>
-                  <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "600" }}>
-                    {contactsLoading ? "Loading..." : "Sync Contacts"}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-            <View style={{ position: "relative", zIndex: 10 }}>
-              <TextInput
-                style={styles.input}
-                value={memberEmail}
-                onChangeText={setMemberEmail}
-                onFocus={() => setIsInputFocused(true)}
-                onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
-                placeholder="Name or email"
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="none"
-              />
-              {suggestions.length > 0 && (
-                <View style={[styles.suggestionsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  {suggestions.map((s) => (
-                    <Pressable
-                      key={s.email || s.phone}
-                      style={styles.suggestionItem}
-                      onPress={() => s.email ? addMemberByIdentifier(s.email, "email") : addMemberByIdentifier(s.phone!, "phone")}
-                    >
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                        <View style={[styles.avatar, { backgroundColor: s.type === "friend" ? colors.accentSoft : colors.purpleSoft }]}>
-                          <Text style={{ color: s.type === "friend" ? colors.accent : colors.purple, fontSize: 10, fontWeight: "700" }}>
-                            {s.type === "friend" ? "FR" : "CO"}
-                          </Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.suggestionName}>{s.name || (s.email || s.phone || "").split("@")[0]}</Text>
-                          <Text style={styles.suggestionEmail}>{s.email || s.phone}</Text>
-                        </View>
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {inviteUser && (
-              <View style={[styles.inviteCard, { backgroundColor: colors.accentSoft }]}>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
-                  {inviteUser.identifier} is not on Cashsync yet.
-                </Text>
-                <Pressable onPress={() => sendInvite(inviteUser.identifier, inviteUser.type)}>
-                  <Text style={{ color: colors.accent, fontWeight: "800", fontSize: 13, marginTop: 4 }}>
-                    Invite via {inviteUser.type === "phone" ? "SMS" : "Email"} →
-                  </Text>
-                </Pressable>
-              </View>
-            )}
-            <Pressable style={styles.primaryBtn} onPress={addMember}>
-              <Text style={styles.primaryBtnText}>Add Member</Text>
-            </Pressable>
-          </View>
-        )}
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Suggested Settlements</Text>
-          {loadingLedger ? (
-            <ActivityIndicator color={colors.accent} />
-          ) : !ledger || ledger.suggestedSettlements.length === 0 ? (
-            <Text style={styles.mutedText}>No pending balances. Everyone is settled up.</Text>
-          ) : (
-            ledger.suggestedSettlements.map((route, i) => {
-              const from = personName(membersById.get(route.fromUserId));
-              const to = personName(membersById.get(route.toUserId));
-              return (
-                <View key={`${route.fromUserId}-${route.toUserId}-${i}`} style={styles.balanceRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.memberName}>{from} pays {to}</Text>
-                    <Text style={styles.mutedText}>{formatCurrency(route.amount, route.currency)}</Text>
-                  </View>
-                  {user?.id === route.fromUserId && (
-                    <Pressable style={[styles.primaryBtn, { paddingHorizontal: 14, paddingVertical: 10 }]} onPress={() => settle(route.fromUserId, route.toUserId, route.amount, route.currency)}>
-                      <Text style={styles.primaryBtnText}>Settle</Text>
-                    </Pressable>
-                  )}
-                </View>
-              );
-            })
-          )}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Member Balances</Text>
-          {ledger?.balances.map((b) => {
-            const person = membersById.get(b.userId);
-            return (
-              <View key={b.userId} style={styles.balanceRow}>
-                <Text style={styles.memberName}>{personName(person)}</Text>
-                <Text style={{ color: b.net >= 0 ? colors.success : colors.danger, fontWeight: "700" }}>
-                  {b.net >= 0 ? "+" : ""}{formatCurrency(b.net, b.currency)}
-                </Text>
-              </View>
-            );
-          })}
         </View>
 
         <View style={styles.card}>
@@ -461,6 +325,155 @@ export default function GroupsScreen() {
             ))
           )}
         </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Settle Up</Text>
+          {loadingLedger ? (
+            <ActivityIndicator color={colors.accent} />
+          ) : !ledger || ledger.suggestedSettlements.length === 0 ? (
+            <Text style={styles.mutedText}>No pending balances. Everyone is settled up.</Text>
+          ) : (
+            ledger.suggestedSettlements.map((route, i) => {
+              const from = personName(membersById.get(route.fromUserId));
+              const to = personName(membersById.get(route.toUserId));
+              return (
+                <View key={`${route.fromUserId}-${route.toUserId}-${i}`} style={styles.balanceRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.memberName}>{from} pays {to}</Text>
+                    <Text style={styles.mutedText}>{formatCurrencyLabel(route.currency)} {formatCurrency(route.amount, route.currency)}</Text>
+                  </View>
+                  {user?.id === route.fromUserId && (
+                    <Pressable style={[styles.primaryBtn, { paddingHorizontal: 14, paddingVertical: 10 }]} onPress={() => settle(route.fromUserId, route.toUserId, route.amount, route.currency)}>
+                      <Text style={styles.primaryBtnText}>Settle</Text>
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        {loading ? (
+          <ActivityIndicator color={colors.accent} />
+        ) : groups.length === 0 ? (
+          <View style={styles.card}><Text style={styles.mutedText}>No groups yet. Create your first one.</Text></View>
+        ) : (
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.cardTitle}>Groups</Text>
+                <Text style={styles.mutedText}>Pick a group only when you need group-specific balances or member management.</Text>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+              {groups.map((group) => (
+                <Pressable
+                  key={group.id}
+                  onPress={() => setSelectedGroupId(group.id)}
+                  style={[styles.groupCard, selectedGroupId === group.id && styles.groupCardActive]}
+                >
+                  <Text style={styles.groupName}>{group.emoji ? `${group.emoji} ` : ""}{group.name}</Text>
+                  <Text style={styles.groupMeta}>{group.members.length} members</Text>
+                  <Text style={[styles.balanceLine, { color: colors.danger }]}>
+                    You owe: {formatCurrency(group.stats.youOwe, group.stats.currency)}
+                  </Text>
+                  <Text style={[styles.balanceLine, { color: colors.success }]}>
+                    You are owed: {formatCurrency(group.stats.youAreOwed, group.stats.currency)}
+                  </Text>
+                  <Text style={[styles.balanceLine, { color: group.stats.net >= 0 ? colors.success : colors.danger }]}>
+                    Net: {formatCurrency(group.stats.net, group.stats.currency)}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {selectedGroup && (
+          <>
+            <View style={styles.card}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={styles.cardTitle}>Add People to {selectedGroup.name}</Text>
+                  <Text style={styles.mutedText}>Invite friends or sync contacts, just like a normal split app.</Text>
+                </View>
+                {contacts.length === 0 && (
+                  <Pressable onPress={loadContacts} disabled={contactsLoading}>
+                    <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "600" }}>
+                      {contactsLoading ? "Loading..." : "Sync Contacts"}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+              <View style={{ position: "relative", zIndex: 10 }}>
+                <TextInput
+                  style={styles.input}
+                  value={memberEmail}
+                  onChangeText={setMemberEmail}
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
+                  placeholder="Name, email, or phone"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="none"
+                />
+                {suggestions.length > 0 && (
+                  <View style={[styles.suggestionsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    {suggestions.map((s) => (
+                      <Pressable
+                        key={s.email || s.phone}
+                        style={styles.suggestionItem}
+                        onPress={() => s.email ? addMemberByIdentifier(s.email, "email") : addMemberByIdentifier(s.phone!, "phone")}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          <View style={[styles.avatar, { backgroundColor: s.type === "friend" ? colors.accentSoft : colors.purpleSoft }]}>
+                            <Text style={{ color: s.type === "friend" ? colors.accent : colors.purple, fontSize: 10, fontWeight: "700" }}>
+                              {s.type === "friend" ? "FR" : "CO"}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.suggestionName}>{s.name || (s.email || s.phone || "").split("@")[0]}</Text>
+                            <Text style={styles.suggestionEmail}>{s.email || s.phone}</Text>
+                          </View>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {inviteUser && (
+                <View style={[styles.inviteCard, { backgroundColor: colors.accentSoft }]}>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
+                    {inviteUser.identifier} is not on Cashsync yet.
+                  </Text>
+                  <Pressable onPress={() => sendInvite(inviteUser.identifier, inviteUser.type)}>
+                    <Text style={{ color: colors.accent, fontWeight: "800", fontSize: 13, marginTop: 4 }}>
+                      Invite via {inviteUser.type === "phone" ? "SMS" : "Email"} →
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+              <Pressable style={styles.primaryBtn} onPress={addMember}>
+                <Text style={styles.primaryBtnText}>Add Person</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{selectedGroup.name} Balances</Text>
+              {ledger?.balances.map((b) => {
+                const person = membersById.get(b.userId);
+                return (
+                  <View key={b.userId} style={styles.balanceRow}>
+                    <Text style={styles.memberName}>{personName(person)}</Text>
+                    <Text style={{ color: b.net >= 0 ? colors.success : colors.danger, fontWeight: "700" }}>
+                      {b.net >= 0 ? "+" : ""}{formatCurrency(b.net, b.currency)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {user && (
@@ -509,6 +522,12 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       backgroundColor: colors.card,
       padding: 16,
       gap: 10,
+    },
+    sectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 12,
     },
     groupCard: {
       width: 220,

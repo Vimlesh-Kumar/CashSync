@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { CurrencyFlag } from "@/src/components/CurrencyFlag";
 import { useAuth } from "@/src/context/AuthContext";
 import { ThemePreference, useAppTheme } from "@/src/context/ThemeContext";
 import { createBudget, getBudgets, updateBudget } from "@/src/features/budget";
@@ -30,7 +31,7 @@ import {
   setSmsAutoSyncEnabled,
   SmsPermissionState,
 } from "@/src/features/transaction/smsAutoSync";
-import { formatCurrency, inferCurrencyFromCountry, normalizeCurrency, SUPPORTED_CURRENCIES } from "@/src/lib/currency";
+import { formatCurrency, getCurrencyMeta, inferCurrencyFromCountry, normalizeCurrency, SUPPORTED_CURRENCIES } from "@/src/lib/currency";
 
 const BUILT_IN_BUDGET_CATEGORIES = [
   "Food & Groceries",
@@ -298,6 +299,13 @@ export default function ProfileScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Default Currency</Text>
           <Text style={styles.helperText}>This currency is used for new transactions and summaries.</Text>
+          <View style={styles.currencyHero}>
+            <CurrencyFlag currency={user.defaultCurrency} size={26} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.currencyHeroCode}>{normalizeCurrency(user.defaultCurrency)}</Text>
+              <Text style={styles.currencyHeroName}>{getCurrencyMeta(user.defaultCurrency).name}</Text>
+            </View>
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
             {SUPPORTED_CURRENCIES.map((currency) => {
               const selected = normalizeCurrency(user.defaultCurrency) === currency;
@@ -316,7 +324,11 @@ export default function ProfileScreen() {
                     }
                   }}
                 >
-                  <Text style={[styles.chipText, selected && styles.chipTextActive]}>{currency}</Text>
+                  <View style={styles.chipLabelRow}>
+                    <CurrencyFlag currency={currency} size={16} />
+                    <Text style={[styles.chipText, selected && styles.chipTextActive]}>{normalizeCurrency(currency)}</Text>
+                  </View>
+                  <Text style={[styles.chipSubtext, selected && styles.chipSubtextActive]}>{getCurrencyMeta(currency).name}</Text>
                 </Pressable>
               );
             })}
@@ -702,6 +714,26 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
     },
     cardTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
     helperText: { color: colors.textMuted, fontSize: 12 },
+    currencyHero: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      padding: 14,
+    },
+    currencyHeroCode: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: "800",
+    },
+    currencyHeroName: {
+      color: colors.textMuted,
+      fontSize: 12,
+      marginTop: 2,
+    },
     permissionRow: {
       flexDirection: "row",
       gap: 12,
@@ -743,6 +775,7 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       backgroundColor: colors.input,
       paddingHorizontal: 14,
       paddingVertical: 9,
+      gap: 2,
     },
     chipActive: {
       borderColor: colors.accent,
@@ -750,6 +783,9 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
     },
     chipText: { color: colors.textMuted, fontWeight: "700", fontSize: 12 },
     chipTextActive: { color: colors.accent },
+    chipLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    chipSubtext: { color: colors.textMuted, fontSize: 10 },
+    chipSubtextActive: { color: colors.accent },
     row: { flexDirection: "row", gap: 10, alignItems: "center" },
     input: {
       flex: 1,
