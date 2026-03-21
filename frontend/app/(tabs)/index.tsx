@@ -63,36 +63,8 @@ export default function HomeScreen() {
         getStats(user.id),
       ]);
 
-      if (txRes.transactions.length === 0) {
-        const seeds = [
-          {
-            title: "Swiggy",
-            amount: 349,
-            type: "EXPENSE",
-            isPersonal: false,
-            category: "Food & Groceries",
-            authorId: user.id,
-          },
-          {
-            title: "Salary Credit",
-            amount: 75000,
-            type: "INCOME",
-            isPersonal: true,
-            category: "Salary",
-            authorId: user.id,
-          },
-        ] as const;
-        await Promise.all(seeds.map((s) => createTransaction(s)));
-        const [refreshedTx, refreshedStats] = await Promise.all([
-          getTransactions(user.id, { limit: 20 }),
-          getStats(user.id),
-        ]);
-        setTransactions(refreshedTx.transactions);
-        setStats(refreshedStats);
-      } else {
-        setTransactions(txRes.transactions);
-        setStats(statsRes);
-      }
+      setTransactions(txRes.transactions);
+      setStats(statsRes);
 
       Animated.timing(fadeAnim, {
         toValue: 1,
