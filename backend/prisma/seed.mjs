@@ -33,133 +33,58 @@ function monthStart(now = new Date()) {
 }
 
 async function seed() {
-  const demoPassword = process.env.DEMO_SEED_PASSWORD;
-  if (!demoPassword) {
-    throw new Error('DEMO_SEED_PASSWORD is required to seed demo credentials.');
-  }
-  const demoPasswordHash = await bcrypt.hash(demoPassword, SALT_ROUNDS);
-  const demoUser = await prisma.user.upsert({
-    where: { email: 'demo@cashsync.app' },
-    update: { name: 'CashSync Demo', provider: 'JWT' },
-    create: {
-      email: 'demo@cashsync.app',
-      name: 'CashSync Demo',
-      provider: 'JWT',
-      password: demoPasswordHash,
-    },
-  });
-
-  for (const category of DEFAULT_CATEGORIES) {
-    await prisma.category.upsert({
-      where: {
-        userId_name: {
-          userId: demoUser.id,
-          name: category.name,
-        },
-      },
-      update: {
-        icon: category.icon,
-        color: category.color,
-        isDefault: true,
-      },
-      create: {
-        userId: demoUser.id,
-        name: category.name,
-        icon: category.icon,
-        color: category.color,
-        isDefault: true,
+  console.log('Clearing database...');
+  await prisma.$executeRawUnsafe(`TRUNCATE TABLE "users", "groups", "transactions", "categories", "budgets" CASCADE;`);
+  
+  console.log('Database cleared. Seeding new data...');
+  
+  const newUsers = [];
+  
+  for (let i = 1; i <= 5; i++) {
+    const passwordHash = await bcrypt.hash(`User@${i}`, SALT_ROUNDS);
+    
+    const user = await prisma.user.create({
+      data: {
+        email: `user${i}@test.com`,
+        name: `User ${i}`,
+        provider: 'JWT',
+        password: passwordHash,
       },
     });
-  }
+    newUsers.push(user);
 
-  const foodCategory = await prisma.category.findUnique({
-    where: {
-      userId_name: {
-        userId: demoUser.id,
-        name: 'Food',
-      },
-    },
-  });
-
-  if (foodCategory) {
-    const existingBudget = await prisma.budget.findFirst({
-      where: {
-        userId: demoUser.id,
-        name: 'Food Budget',
-        monthStart: monthStart(),
-      },
-    });
-
-    if (!existingBudget) {
-      await prisma.budget.create({
+    for (const category of DEFAULT_CATEGORIES) {
+      await prisma.category.create({
         data: {
-          userId: demoUser.id,
-          categoryId: foodCategory.id,
-          name: 'Food Budget',
-          amount: 5000,
-          currency: 'INR',
-          monthStart: monthStart(),
+          userId: user.id,
+          name: category.name,
+          icon: category.icon,
+          color: category.color,
+          isDefault: true,
         },
       });
     }
   }
 
-  let group = await prisma.group.findFirst({
-    where: { name: 'Demo Housemates' },
+  const group = await prisma.group.create({
+    data: {
+      name: 'Test Group',
+      description: 'Test shared expenses group',
+      emoji: '🏠',
+    },
   });
 
-  if (!group) {
-    group = await prisma.group.create({
+  for (let i = 0; i < newUsers.length; i++) {
+    await prisma.groupMember.create({
       data: {
-        name: 'Demo Housemates',
-        description: 'Sample shared expenses group',
-        emoji: '🏠',
+        userId: newUsers[i].id,
+        groupId: group.id,
+        role: i === 0 ? 'ADMIN' : 'MEMBER',
       },
     });
   }
 
-  await prisma.groupMember.upsert({
-    where: {
-      userId_groupId: {
-        userId: demoUser.id,
-        groupId: group.id,
-      },
-    },
-    update: { role: 'ADMIN' },
-    create: {
-      userId: demoUser.id,
-      groupId: group.id,
-      role: 'ADMIN',
-    },
-  });
-
-  const txExists = await prisma.transaction.findFirst({
-    where: {
-      authorId: demoUser.id,
-      title: 'Swiggy Order',
-    },
-  });
-
-  if (!txExists) {
-    await prisma.transaction.create({
-      data: {
-        title: 'Swiggy Order',
-        originalTitle: 'SWIGGY*BANGALORE',
-        amount: 540,
-        type: 'EXPENSE',
-        category: 'Food',
-        categoryId: foodCategory ? foodCategory.id : null,
-        source: 'MANUAL',
-        isPersonal: false,
-        reviewState: 'SPLIT',
-        authorId: demoUser.id,
-        groupId: group.id,
-        hash: `seed-${demoUser.id}-swiggy`,
-      },
-    });
-  }
-
-  console.log('✅ Seed complete. Demo user: demo@cashsync.app');
+  console.log('✅ Seed complete. Created 5 users (user1@test.com - user5@test.com) & Test Group.');
 }
 
 try {

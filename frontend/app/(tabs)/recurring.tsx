@@ -15,6 +15,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/context/AuthContext";
 import { useAppTheme } from "@/src/context/ThemeContext";
 import {
@@ -25,10 +26,10 @@ import {
   updateRecurringBill,
 } from "@/src/features/activity/api/activity.api";
 
-const FREQ_OPTIONS = [
-  { key: "WEEKLY", label: "Weekly", icon: "📅" },
-  { key: "MONTHLY", label: "Monthly", icon: "🗓️" },
-  { key: "YEARLY", label: "Yearly", icon: "📆" },
+const FREQ_OPTIONS: Array<{ key: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { key: "WEEKLY", label: "Weekly", icon: "calendar-outline" },
+  { key: "MONTHLY", label: "Monthly", icon: "calendar-number-outline" },
+  { key: "YEARLY", label: "Yearly", icon: "calendar-clear-outline" },
 ];
 
 function nextDueLabel(dateStr: string) {
@@ -176,7 +177,7 @@ export default function RecurringScreen() {
           <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
         ) : bills.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🔁</Text>
+            <Ionicons name="repeat-outline" size={48} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>No recurring bills</Text>
             <Text style={styles.emptyText}>Set up rent, subscriptions, or any regular expense and we'll create it automatically.</Text>
             <Pressable style={styles.emptyBtn} onPress={() => setShowModal(true)}>
@@ -282,7 +283,7 @@ export default function RecurringScreen() {
                   style={[styles.freqBtn, frequency === f.key && styles.freqBtnActive]}
                   onPress={() => setFrequency(f.key as any)}
                 >
-                  <Text style={styles.freqIcon}>{f.icon}</Text>
+                  <Ionicons name={f.icon} size={18} color={frequency === f.key ? colors.accent : colors.textMuted} />
                   <Text style={[styles.freqLabel, frequency === f.key && { color: colors.accent }]}>
                     {f.label}
                   </Text>
@@ -340,7 +341,7 @@ function BillCard({
         <View style={styles.cardLeft}>
           <Text style={styles.cardTitle}>{bill.title}</Text>
           <Text style={styles.cardMeta}>
-            {freqMeta?.icon} {freqMeta?.label ?? bill.frequency}  ·  {bill.category}
+            <Ionicons name={freqMeta?.icon ?? "calendar-outline"} size={12} color={colors.textMuted} /> {freqMeta?.label ?? bill.frequency}  ·  {bill.category}
           </Text>
         </View>
         <View style={styles.cardRight}>
@@ -352,7 +353,9 @@ function BillCard({
       </View>
       <View style={styles.cardActions}>
         <Pressable onPress={onDelete} style={styles.deleteBtn}>
-          <Text style={styles.deleteBtnText}>🗑 Delete</Text>
+          <Text style={styles.deleteBtnText}>
+            <Ionicons name="trash-outline" size={12} color="#EF4444" /> Delete
+          </Text>
         </Pressable>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={{ color: colors.textMuted, fontSize: 12 }}>
