@@ -4,23 +4,32 @@ export const SUPPORTED_CURRENCIES = [
     'USD', 'INR', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'SGD', 'JPY', 'CNY', 'CHF',
     'THB', 'MYR', 'IDR', 'PHP', 'KRW', 'BDT', 'PKR', 'LKR', 'NPR',
     'MXN', 'BRL', 'ZAR', 'NGN', 'KES', 'EGP',
+    'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'TRY',
+    'ILS', 'SAR', 'QAR', 'KWD', 'BHD', 'OMR', 'JOD',
+    'HKD', 'TWD', 'VND', 'NZD',
+    'ARS', 'CLP', 'COP', 'PEN',
+    'UAH', 'RUB',
 ] as const;
 
 export type CurrencyCode = (typeof SUPPORTED_CURRENCIES)[number];
 
 export const DEFAULT_CURRENCY: CurrencyCode = 'INR';
 
-// Static fallback rates (USD base) used when live fetch fails
 const FALLBACK_USD_RATES: Record<string, number> = {
     USD: 1, INR: 83.2, EUR: 0.92, GBP: 0.79, AED: 3.67,
     CAD: 1.35, AUD: 1.52, SGD: 1.34, JPY: 148, CNY: 7.2, CHF: 0.9,
     THB: 35.5, MYR: 4.7, IDR: 15600, PHP: 56, KRW: 1320,
     BDT: 110, PKR: 278, LKR: 320, NPR: 132,
     MXN: 17.5, BRL: 5.0, ZAR: 18.8, NGN: 1550, KES: 130, EGP: 48,
+    SEK: 10.5, NOK: 10.8, DKK: 6.9, PLN: 4.0, CZK: 23.1, HUF: 360, RON: 4.6, TRY: 32.1,
+    ILS: 3.7, SAR: 3.75, QAR: 3.64, KWD: 0.31, BHD: 0.38, OMR: 0.38, JOD: 0.71,
+    HKD: 7.8, TWD: 31.6, VND: 24500, NZD: 1.63,
+    ARS: 1070, CLP: 970, COP: 3950, PEN: 3.75,
+    UAH: 41, RUB: 92,
 };
 
 const RATES_CACHE_KEY = 'live:fx:rates';
-const RATES_TTL_SECONDS = 3600; // 1 hour
+const RATES_TTL_SECONDS = 3600;
 
 export async function getLiveRates(): Promise<Record<string, number>> {
     try {
@@ -28,7 +37,7 @@ export async function getLiveRates(): Promise<Record<string, number>> {
         const cached = await redis.get(RATES_CACHE_KEY);
         if (cached) return JSON.parse(cached);
     } catch {
-        // Redis unavailable — skip cache
+        // ignore cache failures
     }
 
     try {
@@ -41,10 +50,12 @@ export async function getLiveRates(): Promise<Record<string, number>> {
         }
         try {
             await redis.setEx(RATES_CACHE_KEY, RATES_TTL_SECONDS, JSON.stringify(rates));
-        } catch { /* ignore */ }
+        } catch {
+            // ignore cache write failures
+        }
         return rates;
     } catch {
-        return FALLBACK_USD_RATES; // graceful degradation
+        return FALLBACK_USD_RATES;
     }
 }
 

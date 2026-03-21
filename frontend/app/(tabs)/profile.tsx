@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -31,7 +32,8 @@ import {
   setSmsAutoSyncEnabled,
   SmsPermissionState,
 } from "@/src/features/transaction/smsAutoSync";
-import { formatCurrency, getCurrencyMeta, inferCurrencyFromCountry, normalizeCurrency, SUPPORTED_CURRENCIES } from "@/src/lib/currency";
+import { formatCurrency, getCurrencyMeta, inferCurrencyFromCountry, normalizeCurrency } from "@/src/lib/currency";
+import { COUNTRY_OPTIONS } from "@/src/lib/countries";
 
 const BUILT_IN_BUDGET_CATEGORIES = [
   "Food & Groceries",
@@ -80,7 +82,9 @@ export default function ProfileScreen() {
   const [selectedBudgetCategoryId, setSelectedBudgetCategoryId] = useState<string | null>(null);
   const [selectedBudgetCategoryName, setSelectedBudgetCategoryName] = useState<string | null>(null);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
-  const [savingDefaultCurrency, setSavingDefaultCurrency] = useState(false);
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string>("IN");
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+  const [countryQuery, setCountryQuery] = useState("");
   const [locationPermission, setLocationPermission] = useState<PermissionState>("unknown");
   const [contactsPermission, setContactsPermission] = useState<PermissionState>("unknown");
   const [permissionLoading, setPermissionLoading] = useState<"location" | "contacts" | null>(null);
@@ -154,6 +158,11 @@ export default function ProfileScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    setSelectedCountryCode(getCurrencyMeta(user.defaultCurrency).countryCode);
+  }, [user]);
+
   const budgetCategoryOptions: BudgetCategoryOption[] = [
     ...BUILT_IN_BUDGET_CATEGORIES.map((name) => ({
       key: `system-${name}`,
@@ -188,10 +197,13 @@ export default function ProfileScreen() {
     setSelectedBudgetCategoryName(budget.category?.name ?? budget.categoryLabel ?? null);
   };
 
-  const applyDefaultCurrency = useCallback(async (currency: string) => {
+  const applyDefaultCurrency = useCallback(async (currency: string, countryCode?: string) => {
     if (!user) return;
     await updateUser(user.id, { defaultCurrency: currency });
     await updateCurrentUser({ defaultCurrency: currency });
+    if (countryCode) {
+      setSelectedCountryCode(countryCode.toUpperCase());
+    }
   }, [updateCurrentUser, user]);
 
   const requestLocationCurrency = useCallback(async () => {
@@ -213,7 +225,7 @@ export default function ProfileScreen() {
       const places = await Location.reverseGeocodeAsync(position.coords);
       const countryCode = places[0]?.isoCountryCode ?? null;
       const inferredCurrency = inferCurrencyFromCountry(countryCode);
-      await applyDefaultCurrency(inferredCurrency);
+      await applyDefaultCurrency(inferredCurrency, countryCode ?? undefined);
       Alert.alert(
         "Default currency updated",
         countryCode
@@ -282,6 +294,16 @@ export default function ProfileScreen() {
     }
   }, [smsAutoSyncEnabled]);
 
+  const filteredCountries = COUNTRY_OPTIONS.filter((country) => {
+    const query = countryQuery.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      country.name.toLowerCase().includes(query)
+      || country.code.toLowerCase().includes(query)
+      || country.currency.toLowerCase().includes(query)
+    );
+  });
+
   if (!user) return null;
 
   return (
@@ -300,39 +322,30 @@ export default function ProfileScreen() {
           <Text style={styles.cardTitle}>Default Currency</Text>
           <Text style={styles.helperText}>This currency is used for new transactions and summaries.</Text>
           <View style={styles.currencyHero}>
-            <CurrencyFlag currency={user.defaultCurrency} size={26} />
+            <CurrencyFlag currency={user.defaultCurrency} countryCode={selectedCountryCode} size={26} />
             <View style={{ flex: 1 }}>
               <Text style={styles.currencyHeroCode}>{normalizeCurrency(user.defaultCurrency)}</Text>
-              <Text style={styles.currencyHeroName}>{getCurrencyMeta(user.defaultCurrency).name}</Text>
+              <Text style={styles.currencyHeroName}>
+                {COUNTRY_OPTIONS.find((country) => country.code === selectedCountryCode)?.name ?? getCurrencyMeta(user.defaultCurrency).name}
+                {" • "}
+                {getCurrencyMeta(user.defaultCurrency).name}
+              </Text>
             </View>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
-            {SUPPORTED_CURRENCIES.map((currency) => {
-              const selected = normalizeCurrency(user.defaultCurrency) === currency;
-              return (
-                <Pressable
-                  key={currency}
-                  style={[styles.chip, selected && styles.chipActive, savingDefaultCurrency && { opacity: 0.7 }]}
-                  disabled={savingDefaultCurrency}
-                  onPress={async () => {
-                    if (selected) return;
-                    try {
-                      setSavingDefaultCurrency(true);
-                      await applyDefaultCurrency(currency);
-                    } finally {
-                      setSavingDefaultCurrency(false);
-                    }
-                  }}
-                >
-                  <View style={styles.chipLabelRow}>
-                    <CurrencyFlag currency={currency} size={16} />
-                    <Text style={[styles.chipText, selected && styles.chipTextActive]}>{normalizeCurrency(currency)}</Text>
-                  </View>
-                  <Text style={[styles.chipSubtext, selected && styles.chipSubtextActive]}>{getCurrencyMeta(currency).name}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          <Pressable style={styles.dropdownTrigger} onPress={() => setCountryPickerOpen(true)}>
+            <View style={styles.dropdownTriggerLeft}>
+              <CurrencyFlag currency={user.defaultCurrency} countryCode={selectedCountryCode} size={18} />
+              <View>
+                <Text style={styles.dropdownTriggerTitle}>
+                  {COUNTRY_OPTIONS.find((country) => country.code === selectedCountryCode)?.name ?? "Choose Country"}
+                </Text>
+                <Text style={styles.dropdownTriggerMeta}>
+                  {normalizeCurrency(user.defaultCurrency)} • {getCurrencyMeta(user.defaultCurrency).name}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+          </Pressable>
         </View>
 
         <View style={styles.card}>
@@ -646,7 +659,7 @@ export default function ProfileScreen() {
               )}
             </Pressable>
           </View>
-          <Text style={styles.helperText}>Live USD-based rates for 26+ currencies (cached 1hr).</Text>
+          <Text style={styles.helperText}>Live USD-based rates for 50+ currencies (cached 1hr).</Text>
           {liveRates && (
             <>
               <Text style={{ color: colors.textMuted, fontSize: 11 }}>Updated: {new Date(liveRates.updatedAt).toLocaleTimeString()}</Text>
@@ -675,6 +688,51 @@ export default function ProfileScreen() {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={countryPickerOpen} transparent animationType="slide" onRequestClose={() => setCountryPickerOpen(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.modalHead}>
+              <Text style={styles.cardTitle}>Choose Country</Text>
+              <Pressable onPress={() => setCountryPickerOpen(false)}>
+                <Text style={styles.secondaryBtnText}>Close</Text>
+              </Pressable>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Search country or currency"
+              placeholderTextColor={colors.textMuted}
+              value={countryQuery}
+              onChangeText={setCountryQuery}
+            />
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {filteredCountries.map((country) => {
+                const selected = country.code === selectedCountryCode;
+                return (
+                  <Pressable
+                    key={country.code}
+                    style={[styles.countryRow, selected && styles.countryRowActive]}
+                    onPress={async () => {
+                      await applyDefaultCurrency(country.currency, country.code);
+                      setCountryPickerOpen(false);
+                      setCountryQuery("");
+                    }}
+                  >
+                    <CurrencyFlag currency={country.currency} countryCode={country.code} size={20} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.countryRowTitle}>{country.name}</Text>
+                      <Text style={styles.countryRowMeta}>
+                        {country.currency} • {getCurrencyMeta(country.currency).name}
+                      </Text>
+                    </View>
+                    {selected ? <Ionicons name="checkmark-circle" size={18} color={colors.accent} /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -768,6 +826,33 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       gap: 4,
     },
     selectorRow: { flexDirection: "row", gap: 8, paddingBottom: 2 },
+    dropdownTrigger: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    dropdownTriggerLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      flex: 1,
+    },
+    dropdownTriggerTitle: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    dropdownTriggerMeta: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 2,
+    },
     chip: {
       borderRadius: 999,
       borderWidth: 1,
@@ -883,6 +968,50 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       alignItems: "center",
       justifyContent: "center",
       borderRadius: 16,
+    },
+    pickerOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0, 0, 0, 0.45)",
+      justifyContent: "flex-end",
+    },
+    pickerSheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 20,
+      paddingBottom: 32,
+      gap: 12,
+      maxHeight: "78%",
+    },
+    modalHead: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    countryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    countryRowActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    countryRowTitle: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    countryRowMeta: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 2,
     },
     exportBtn: {
       borderWidth: 1,
