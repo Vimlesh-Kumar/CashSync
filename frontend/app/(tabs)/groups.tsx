@@ -41,6 +41,46 @@ function personName(user?: { id: string; name?: string; email: string }) {
   return user.name || user.email.split("@")[0] || "User";
 }
 
+/**
+ * Show a confirmation dialog before performing a destructive action. Uses native alert on mobile and `confirm` on web.
+ * @param title 
+ * @param message 
+ * @param confirmLabel 
+ * @returns 
+ */
+async function confirmAction(title: string, message: string, confirmLabel: string) {
+  if (Platform.OS === "web") {
+    return globalThis.confirm(`${title}\n\n${message}`);
+  }
+
+  return new Promise<boolean>((resolve) => {
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+      { text: confirmLabel, style: "destructive", onPress: () => resolve(true) },
+    ]);
+  });
+}
+
+/**
+ * Get a user-friendly error message from an error object.
+ * @param error 
+ * @param fallback 
+ * @returns 
+ */
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return fallback;
+}
+
+function showError(title: string, message: string) {
+  if (Platform.OS === "web") {
+    globalThis.alert(`${title}\n\n${message}`);
+    return;
+  }
+
+  Alert.alert(title, message);
+}
+
 type CreateGroupModalProps = Readonly<{
   visible: boolean;
   onClose: () => void;
@@ -244,28 +284,23 @@ export default function GroupsScreen() {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [inviteUser, setInviteUser] = useState<{ identifier: string; type: "email" | "phone" } | null>(null);
 
-  const handleDeleteGroup = () => {
+  const handleDeleteGroup = async () => {
     if (!selectedGroupId) return;
-    Alert.alert(
+    const confirmed = await confirmAction(
       "Delete Group",
       "Are you sure you want to delete this group? This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
-          style: "destructive", 
-          onPress: async () => {
-            try {
-              await deleteGroup(selectedGroupId);
-              setSelectedGroupId(null);
-              await loadGroups();
-            } catch (e) {
-              console.error(e);
-            }
-          } 
-        },
-      ]
+      "Delete",
     );
+    if (!confirmed) return;
+
+    try {
+      await deleteGroup(selectedGroupId);
+      setSelectedGroupId(null);
+      await loadGroups();
+    } catch (e) {
+      console.error(e);
+      showError("Delete Failed", getErrorMessage(e, "Unable to delete the group."));
+    }
   };
 
   const handleUpdateMemberRole = async (userId: string, role: 'ADMIN' | 'MEMBER') => {
@@ -275,30 +310,26 @@ export default function GroupsScreen() {
       await Promise.all([loadGroups(), loadLedger()]);
     } catch (e) {
       console.error(e);
+      showError("Update Failed", getErrorMessage(e, "Unable to update the member role."));
     }
   };
 
-  const handleRemoveMember = (userId: string) => {
+  const handleRemoveMember = async (userId: string) => {
     if (!selectedGroupId) return;
-    Alert.alert(
+    const confirmed = await confirmAction(
       "Remove Member",
       "Are you sure you want to remove this member?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Remove", 
-          style: "destructive", 
-          onPress: async () => {
-            try {
-              await removeGroupMember(selectedGroupId, userId);
-              await Promise.all([loadGroups(), loadLedger()]);
-            } catch (e) {
-              console.error(e);
-            }
-          } 
-        },
-      ]
+      "Remove",
     );
+    if (!confirmed) return;
+
+    try {
+      await removeGroupMember(selectedGroupId, userId);
+      await Promise.all([loadGroups(), loadLedger()]);
+    } catch (e) {
+      console.error(e);
+      showError("Remove Failed", getErrorMessage(e, "Unable to remove the member."));
+    }
   };
 
 
@@ -385,6 +416,7 @@ export default function GroupsScreen() {
         setInviteUser({ identifier: identifier.trim(), type });
       } else {
         console.error(e);
+        showError("Add Member Failed", getErrorMessage(e, "Unable to add this member."));
       }
     }
   };
@@ -494,6 +526,7 @@ export default function GroupsScreen() {
         .then(setSearchResults)
         .catch((error) => {
           console.error(error);
+          showError("Search Failed", getErrorMessage(error, "Unable to search users right now."));
           setSearchResults([]);
         })
         .finally(() => setSearchingUsers(false));
