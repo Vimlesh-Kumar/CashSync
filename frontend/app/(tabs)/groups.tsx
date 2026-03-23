@@ -1,3 +1,5 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Contacts from "expo-contacts";
 import { useFocusEffect } from "@react-navigation/native";
@@ -33,7 +35,15 @@ import {
   updateGroup,
   updateGroupMember,
 } from "@/src/features/group";
-import { FriendBalanceSummary, getFriendBalances } from "@/src/features/transaction";
+import {
+  addSplits,
+  createTransaction,
+  FriendBalanceSummary,
+  getFriendBalances,
+  getTransactions,
+  Transaction,
+} from "@/src/features/transaction";
+import { getAllUsers } from "@/src/features/user";
 import { formatCurrency, formatCurrencyLabel } from "@/src/lib/currency";
 
 function personName(user?: { id: string; name?: string; email: string }) {
@@ -81,6 +91,458 @@ function showError(title: string, message: string) {
   Alert.alert(title, message);
 }
 
+function CommonExpenseModal({
+  visible,
+  authorId,
+  groups,
+  friendCandidates,
+  initialGroupId,
+  onClose,
+  onDone,
+}: CommonExpenseModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const [mode, setMode] = useState<"GROUP" | "FRIEND">("GROUP");
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroupId ?? groups[0]?.id ?? null);
+  const [groupMembers, setGroupMembers] = useState<GroupLedger["members"]>([]);
+  const [selectedGroupUserIds, setSelectedGroupUserIds] = useState<string[]>([]);
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setMode(initialGroupId ? "GROUP" : "GROUP");
+    setSelectedGroupId(initialGroupId ?? groups[0]?.id ?? null);
+    setSelectedFriendIds([]);
+    setTitle("");
+    setAmount("");
+    setNote("");
+  }, [visible, initialGroupId, groups]);
+
+  useEffect(() => {
+    if (!visible || mode !== "GROUP" || !selectedGroupId) return;
+
+    setLoadingMembers(true);
+    getGroupLedger(selectedGroupId)
+      .then((ledger) => {
+        setGroupMembers(ledger.members);
+        setSelectedGroupUserIds(ledger.members.map((member) => member.userId));
+      })
+      .catch((error) => {
+        console.error(error);
+        showError("Group Load Failed", getErrorMessage(error, "Unable to load group members."));
+      })
+      .finally(() => setLoadingMembers(false));
+  }, [visible, mode, selectedGroupId]);
+
+  const toggleGroupMember = useCallback((userId: string) => {
+    setSelectedGroupUserIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId],
+    );
+  }, []);
+
+  const toggleFriend = useCallback((userId: string) => {
+    setSelectedFriendIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId],
+    );
+  }, []);
+
+  const submit = async () => {
+    const parsedAmount = Number(amount);
+    if (!title.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      showError("Invalid Expense", "Enter a title and a valid amount.");
+      return;
+    }
+
+    const splitUserIds = mode === "GROUP"
+      ? selectedGroupUserIds
+      : Array.from(new Set([authorId, ...selectedFriendIds]));
+
+    if (mode === "GROUP" && !selectedGroupId) {
+      showError("Missing Group", "Choose a group for this expense.");
+      return;
+    }
+
+    if (splitUserIds.length === 0 || (mode === "FRIEND" && selectedFriendIds.length === 0)) {
+      showError("Missing People", "Choose at least one person for this expense.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const tx = await createTransaction({
+        title: title.trim(),
+        amount: parsedAmount,
+        note: note.trim() || undefined,
+        authorId,
+        groupId: mode === "GROUP" ? selectedGroupId ?? undefined : undefined,
+        isPersonal: false,
+        reviewState: "SPLIT",
+      });
+
+      await addSplits(
+        tx.id,
+        splitUserIds.map((userId) => ({ userId })),
+        "EQUAL",
+        parsedAmount,
+        mode === "GROUP" ? selectedGroupId : null,
+      );
+
+      onDone();
+      onClose();
+    } catch (error) {
+      console.error(error);
+      showError("Expense Failed", getErrorMessage(error, "Unable to save this expense."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalTopRow}>
+            <Text style={styles.title}>Add Expense</Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </Pressable>
+          </View>
+
+          <View style={styles.segmentRow}>
+            <Pressable
+              style={[styles.segmentButton, mode === "GROUP" && styles.segmentButtonActive]}
+              onPress={() => setMode("GROUP")}
+            >
+              <Text style={[styles.segmentText, mode === "GROUP" && styles.segmentTextActive]}>Group</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.segmentButton, mode === "FRIEND" && styles.segmentButtonActive]}
+              onPress={() => setMode("FRIEND")}
+            >
+              <Text style={[styles.segmentText, mode === "FRIEND" && styles.segmentTextActive]}>Friends</Text>
+            </Pressable>
+          </View>
+
+          {mode === "GROUP" ? (
+            <>
+              <Text style={styles.sheetLabel}>Choose group</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineScroll}>
+                {groups.map((group) => (
+                  <Pressable
+                    key={group.id}
+                    onPress={() => setSelectedGroupId(group.id)}
+                    style={[
+                      styles.compactChip,
+                      selectedGroupId === group.id && styles.compactChipActive,
+                    ]}
+                  >
+                    <Text style={[styles.compactChipText, selectedGroupId === group.id && styles.compactChipTextActive]}>
+                      {group.emoji ? `${group.emoji} ` : ""}{group.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </>
+          ) : (
+            <>
+              <Text style={styles.sheetLabel}>Choose friends</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineScroll}>
+                {friendCandidates.map((friend) => {
+                  const active = selectedFriendIds.includes(friend.id);
+                  return (
+                    <Pressable
+                      key={friend.id}
+                      onPress={() => toggleFriend(friend.id)}
+                      style={[styles.compactChip, active && styles.compactChipActive]}
+                    >
+                      <Text style={[styles.compactChipText, active && styles.compactChipTextActive]}>
+                        {personName(friend)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
+
+          <TextInput
+            style={styles.input}
+            placeholder="What was this for?"
+            placeholderTextColor={colors.textMuted}
+            value={title}
+            onChangeText={setTitle}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Amount"
+            placeholderTextColor={colors.textMuted}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Add a note"
+            placeholderTextColor={colors.textMuted}
+            value={note}
+            onChangeText={setNote}
+          />
+
+          {mode === "GROUP" && (
+            <View style={{ gap: 8 }}>
+              <Text style={styles.sheetLabel}>Split equally with</Text>
+              {loadingMembers ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : (
+                <View style={styles.wrapRow}>
+                  {groupMembers.map((member) => {
+                    const active = selectedGroupUserIds.includes(member.userId);
+                    return (
+                      <Pressable
+                        key={member.userId}
+                        onPress={() => toggleGroupMember(member.userId)}
+                        style={[styles.personPill, active && styles.personPillActive]}
+                      >
+                        <Text style={[styles.personPillText, active && styles.personPillTextActive]}>
+                          {personName(member.user)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
+
+          {mode === "FRIEND" && (
+            <Text style={styles.mutedText}>
+              Expense will be split equally between you and the selected friend{selectedFriendIds.length === 1 ? "" : "s"}.
+            </Text>
+          )}
+
+          <View style={styles.rowGap}>
+            <Pressable style={styles.secondaryBtn} onPress={onClose}>
+              <Text style={styles.secondaryBtnText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={[styles.primaryBtn, { flex: 1.4, alignItems: "center" }]} onPress={submit} disabled={saving}>
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Expense</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function MemberDetailModal({
+  visible,
+  groupName,
+  member,
+  balance,
+  onClose,
+  onRemove,
+  onToggleRole,
+}: MemberDetailModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  if (!member) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalTopRow}>
+            <View>
+              <Text style={styles.title}>{personName(member.user)}</Text>
+              <Text style={styles.subtitle}>{member.user.email}</Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </Pressable>
+          </View>
+          <View style={styles.memberProfileCard}>
+            <Text style={styles.memberProfileAmount}>
+              {balanceLabel(balance?.net ?? 0, balance?.currency ?? "INR")}
+            </Text>
+            <Text style={styles.mutedText}>{member.role} in {groupName}</Text>
+          </View>
+          <Pressable style={styles.settingAction} onPress={onToggleRole}>
+            <Text style={styles.settingActionText}>View settings</Text>
+            <Text style={styles.settingActionSubtext}>Toggle role between admin and member</Text>
+          </Pressable>
+          <Pressable style={styles.settingAction} onPress={onRemove}>
+            <Text style={[styles.settingActionText, { color: colors.danger }]}>Remove from group</Text>
+            <Text style={styles.settingActionSubtext}>This removes the member from the shared circle.</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function GroupSettingsModal({
+  visible,
+  group,
+  ledger,
+  userId,
+  memberEmail,
+  selectedUsers,
+  inviteUser,
+  contacts,
+  contactsLoading,
+  addingSelectedUsers,
+  searchingUsers,
+  onClose,
+  onOpenEdit,
+  onDeleteGroup,
+  onLeaveGroup,
+  onOpenMember,
+  onMemberEmailChange,
+  onFocusMemberInput,
+  onLoadContacts,
+  onRemoveSelectedUser,
+  onAddMember,
+  onInvite,
+}: GroupSettingsModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalSheet, { maxHeight: "88%" }]}>
+          <View style={styles.modalTopRow}>
+            <Text style={styles.title}>Group Settings</Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
+            <View style={styles.settingsBlock}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={styles.cardTitle}>{group.emoji ? `${group.emoji} ` : ""}{group.name}</Text>
+                  <Text style={styles.mutedText}>Manage details and members for this group.</Text>
+                </View>
+                <Pressable style={styles.iconTextBtn} onPress={onOpenEdit}>
+                  <Text style={styles.iconTextBtnLabel}>Edit</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.settingsBlock}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.cardTitle}>Add people to group</Text>
+                {contacts.length === 0 && (
+                  <Pressable onPress={onLoadContacts} disabled={contactsLoading}>
+                    <Text style={styles.linkText}>{contactsLoading ? "Loading..." : "Sync Contacts"}</Text>
+                  </Pressable>
+                )}
+              </View>
+              <TextInput
+                style={styles.input}
+                value={memberEmail}
+                onChangeText={onMemberEmailChange}
+                onFocus={onFocusMemberInput}
+                placeholder="Search by name, email or phone"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+              />
+              {selectedUsers.length > 0 && (
+                <View style={styles.wrapRow}>
+                  {selectedUsers.map((selectedUser) => (
+                    <Pressable key={selectedUser.id} onPress={() => onRemoveSelectedUser(selectedUser.id)} style={styles.personPillActive}>
+                      <Text style={styles.personPillTextActive}>{personName(selectedUser)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              {searchingUsers && <Text style={styles.mutedText}>Searching Cashsync users...</Text>}
+              {inviteUser && (
+                <View style={[styles.inviteCard, { backgroundColor: colors.accentSoft }]}>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
+                    {inviteUser.identifier} is not on Cashsync yet.
+                  </Text>
+                  <Pressable onPress={() => onInvite(inviteUser.identifier, inviteUser.type)}>
+                    <Text style={styles.linkText}>Invite via {inviteUser.type === "phone" ? "SMS" : "Email"}</Text>
+                  </Pressable>
+                </View>
+              )}
+              <View style={styles.rowGap}>
+                <Pressable style={[styles.secondaryBtn, { flex: 1 }]} onPress={async () => {
+                  await Clipboard.setStringAsync(`cashsync://groups/${group.id}`);
+                  showError("Invite Link Copied", "Group invite link copied to clipboard.");
+                }}>
+                  <Text style={styles.secondaryBtnText}>Invite via Link</Text>
+                </Pressable>
+                <Pressable style={[styles.primaryBtn, { flex: 1, alignItems: "center" }]} onPress={onAddMember} disabled={addingSelectedUsers}>
+                  {addingSelectedUsers ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Add People</Text>}
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.settingsBlock}>
+              <Text style={styles.cardTitle}>Members</Text>
+              {ledger?.members.map((member) => {
+                const balance = ledger.balances.find((item) => item.userId === member.userId);
+                return (
+                  <Pressable key={member.userId} style={styles.memberListRow} onPress={() => onOpenMember(member.userId)}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.memberName}>{personName(member.user)}</Text>
+                      <Text style={styles.mutedText}>{member.role}</Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.memberAmountCompact,
+                        { color: (balance?.net ?? 0) >= 0 ? colors.success : colors.danger },
+                      ]}
+                    >
+                      {balanceLabel(balance?.net ?? 0, balance?.currency ?? ledger.currency)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.settingsBlock}>
+              <Text style={styles.cardTitle}>Simplify group debt</Text>
+              {!ledger || ledger.suggestedSettlements.length === 0 ? (
+                <Text style={styles.mutedText}>No suggested settlements right now.</Text>
+              ) : (
+                ledger.suggestedSettlements.map((route, index) => (
+                  <View key={`${route.fromUserId}-${route.toUserId}-${index}`} style={styles.memberListRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.memberName}>
+                        {personName(ledger.members.find((m) => m.userId === route.fromUserId)?.user)} pays {personName(ledger.members.find((m) => m.userId === route.toUserId)?.user)}
+                      </Text>
+                      <Text style={styles.mutedText}>{formatCurrencyLabel(route.currency)}</Text>
+                    </View>
+                    <Text style={styles.memberAmountCompact}>{formatCurrency(route.amount, route.currency)}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            <View style={styles.rowGap}>
+              <Pressable style={[styles.secondaryBtn, { flex: 1 }]} onPress={onLeaveGroup}>
+                <Text style={styles.secondaryBtnText}>Leave Group</Text>
+              </Pressable>
+              <Pressable style={[styles.secondaryBtn, { flex: 1, borderColor: colors.danger }]} onPress={onDeleteGroup}>
+                <Text style={[styles.secondaryBtnText, { color: colors.danger }]}>Delete Group</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 type CreateGroupModalProps = Readonly<{
   visible: boolean;
   onClose: () => void;
@@ -103,6 +565,63 @@ type MemberSuggestion = {
   type: "db" | "contact";
   user?: GroupSearchUser;
 };
+
+type FriendCandidate = {
+  id: string;
+  name?: string;
+  email: string;
+};
+
+type CommonExpenseModalProps = Readonly<{
+  visible: boolean;
+  authorId: string;
+  groups: GroupSummary[];
+  friendCandidates: FriendCandidate[];
+  initialGroupId?: string | null;
+  onClose: () => void;
+  onDone: () => void;
+}>;
+
+type GroupSettingsModalProps = Readonly<{
+  visible: boolean;
+  group: GroupSummary;
+  ledger: GroupLedger | null;
+  userId?: string;
+  memberEmail: string;
+  selectedUsers: GroupSearchUser[];
+  inviteUser: { identifier: string; type: "email" | "phone" } | null;
+  contacts: Contacts.Contact[];
+  contactsLoading: boolean;
+  addingSelectedUsers: boolean;
+  searchingUsers: boolean;
+  onClose: () => void;
+  onOpenEdit: () => void;
+  onDeleteGroup: () => void;
+  onLeaveGroup: () => void;
+  onOpenMember: (userId: string) => void;
+  onMemberEmailChange: (value: string) => void;
+  onFocusMemberInput: () => void;
+  onLoadContacts: () => void;
+  onRemoveSelectedUser: (userId: string) => void;
+  onAddMember: () => void;
+  onInvite: (identifier: string, type: "email" | "phone") => void;
+}>;
+
+type MemberDetailModalProps = Readonly<{
+  visible: boolean;
+  groupName: string;
+  member?: GroupLedger["members"][number];
+  balance?: GroupLedger["balances"][number];
+  onClose: () => void;
+  onRemove: () => void;
+  onToggleRole: () => void;
+}>;
+
+function balanceLabel(amount: number, currency: string) {
+  if (amount > 0) return `Gets back ${formatCurrency(amount, currency)}`;
+  if (amount < 0) return `Owes ${formatCurrency(Math.abs(amount), currency)}`;
+  return "All settled";
+}
 
 function CreateGroupModal({
   visible,
@@ -266,14 +785,20 @@ export default function GroupsScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [allUsers, setAllUsers] = useState<FriendCandidate[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [ledger, setLedger] = useState<GroupLedger | null>(null);
-  const [friendBalances, setFriendBalances] = useState<FriendBalanceSummary[]>([]);
+  const [groupExpenses, setGroupExpenses] = useState<Transaction[]>([]);
+  const [, setFriendBalances] = useState<FriendBalanceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingLedger, setLoadingLedger] = useState(false);
-  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
+  const [, setLoadingFriends] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
+  const [openSettings, setOpenSettings] = useState(false);
+  const [openExpense, setOpenExpense] = useState(false);
+  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   const [memberEmail, setMemberEmail] = useState("");
   const [searchResults, setSearchResults] = useState<GroupSearchUser[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<GroupSearchUser[]>([]);
@@ -332,6 +857,26 @@ export default function GroupsScreen() {
     }
   };
 
+  const handleLeaveGroup = async () => {
+    if (!selectedGroupId || !user?.id) return;
+    const confirmed = await confirmAction(
+      "Leave Group",
+      "Are you sure you want to leave this group?",
+      "Leave",
+    );
+    if (!confirmed) return;
+
+    try {
+      await removeGroupMember(selectedGroupId, user.id);
+      setOpenSettings(false);
+      setSelectedGroupId(null);
+      await Promise.all([loadGroups(), loadLedger(), loadFriends(), loadGroupExpenses()]);
+    } catch (error) {
+      console.error(error);
+      showError("Leave Failed", getErrorMessage(error, "Unable to leave the group."));
+    }
+  };
+
 
 
   const selectedGroup = useMemo(
@@ -374,6 +919,33 @@ export default function GroupsScreen() {
     }
   }, [user]);
 
+  const loadUsers = useCallback(async () => {
+    if (!user) return;
+    try {
+      const result = await getAllUsers();
+      setAllUsers(
+        (result as FriendCandidate[]).filter((candidate) => candidate.id !== user.id),
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  }, [user]);
+
+  const loadGroupExpenses = useCallback(async () => {
+    if (!user || !selectedGroupId) {
+      setGroupExpenses([]);
+      return;
+    }
+
+    setLoadingExpenses(true);
+    try {
+      const result = await getTransactions(user.id, { groupId: selectedGroupId, limit: 12 });
+      setGroupExpenses(result.transactions);
+    } finally {
+      setLoadingExpenses(false);
+    }
+  }, [selectedGroupId, user]);
+
   const loadContacts = useCallback(async () => {
     const { status } = await Contacts.requestPermissionsAsync();
     if (status !== "granted") return;
@@ -396,10 +968,14 @@ export default function GroupsScreen() {
     void loadLedger();
   }, [loadLedger]);
 
+  useEffect(() => {
+    void loadGroupExpenses();
+  }, [loadGroupExpenses]);
+
   useFocusEffect(
     useCallback(() => {
-      void Promise.all([loadGroups(), loadLedger(), loadFriends()]);
-    }, [loadGroups, loadLedger, loadFriends]),
+      void Promise.all([loadGroups(), loadLedger(), loadFriends(), loadGroupExpenses(), loadUsers()]);
+    }, [loadGroups, loadLedger, loadFriends, loadGroupExpenses, loadUsers]),
   );
 
   const addMemberByIdentifier = async (identifier: string, type: "email" | "phone") => {
@@ -410,7 +986,7 @@ export default function GroupsScreen() {
         ? { emails: [identifier.trim()] }
         : { phones: [identifier.trim()] });
       setMemberEmail("");
-      await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
+      await Promise.all([loadGroups(), loadLedger(), loadFriends(), loadGroupExpenses()]);
     } catch (e: any) {
       if (e.message.includes("not found")) {
         setInviteUser({ identifier: identifier.trim(), type });
@@ -447,7 +1023,7 @@ export default function GroupsScreen() {
         setMemberEmail("");
         setSearchResults([]);
         dismissMemberSearch();
-        await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
+        await Promise.all([loadGroups(), loadLedger(), loadFriends(), loadGroupExpenses()]);
       } finally {
         setAddingSelectedUsers(false);
       }
@@ -505,7 +1081,7 @@ export default function GroupsScreen() {
       .filter((item) => !item.email || !existingMemberEmails.has(item.email.toLowerCase()))
       .filter((u, i, self) => self.findIndex(t => (t.email && t.email === u.email) || (t.phone && t.phone === u.phone) || t.key === u.key) === i)
       .slice(0, q ? 5 : 8);
-  }, [contacts, isInputFocused, ledger?.members, memberEmail, searchResults, selectedUsers]);
+  }, [contacts, isInputFocused, ledger?.members, memberEmail, searchResults]);
 
   const dismissMemberSearch = useCallback(() => {
     setIsInputFocused(false);
@@ -562,7 +1138,7 @@ export default function GroupsScreen() {
   const settle = async (fromUserId: string, toUserId: string, amount: number, currency: string) => {
     if (!selectedGroupId) return;
     await settleGroupDebt(selectedGroupId, { fromUserId, toUserId, amount, currency });
-    await Promise.all([loadGroups(), loadLedger(), loadFriends()]);
+    await Promise.all([loadGroups(), loadLedger(), loadFriends(), loadGroupExpenses()]);
   };
 
   const membersById = useMemo(() => {
@@ -570,6 +1146,16 @@ export default function GroupsScreen() {
     ledger?.members.forEach((m) => map.set(m.user.id, m.user));
     return map;
   }, [ledger]);
+
+  const activeMember = useMemo(
+    () => ledger?.members.find((member) => member.userId === activeMemberId),
+    [activeMemberId, ledger],
+  );
+
+  const activeMemberBalance = useMemo(
+    () => ledger?.balances.find((balance) => balance.userId === activeMemberId),
+    [activeMemberId, ledger],
+  );
 
   const renderSuggestions = () => {
     if (suggestions.length === 0) return null;
@@ -614,240 +1200,167 @@ export default function GroupsScreen() {
       <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Groups</Text>
-            <Text style={styles.subtitle}>Create groups, add people, and manage shared circles</Text>
-          </View>
-          <Pressable style={styles.addBtn} onPress={() => setOpenCreate(true)}>
-            <Text style={styles.addBtnText}>+ Group</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Friends & Balances</Text>
-          {loadingFriends ? (
-            <ActivityIndicator color={colors.accent} />
-          ) : friendBalances.length === 0 ? (
-            <Text style={styles.mutedText}>No friend balances yet. Split a bill and this list will show who owes whom.</Text>
-          ) : (
-            friendBalances.map((friend) => (
-              <View key={friend.userId} style={styles.friendRow}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={styles.memberName}>{personName(friend.user)}</Text>
-                  <Text style={styles.mutedText}>
-                    {friend.groups.length > 0 ? friend.groups.slice(0, 2).join(" • ") : "Direct split"} • {friend.splitCount} open split{friend.splitCount === 1 ? "" : "s"}
-                  </Text>
-                </View>
-                <Text style={{ color: friend.net >= 0 ? colors.success : colors.danger, fontWeight: "800" }}>
-                  {friend.net >= 0
-                    ? `Gets ${formatCurrency(friend.net, friend.currency)}`
-                    : `Owes ${formatCurrency(Math.abs(friend.net), friend.currency)}`}
-                </Text>
-              </View>
-            ))
-          )}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Settle Up</Text>
-          {loadingLedger ? (
-            <ActivityIndicator color={colors.accent} />
-          ) : !ledger || ledger.suggestedSettlements.length === 0 ? (
-            <Text style={styles.mutedText}>No pending balances. Everyone is settled up.</Text>
-          ) : (
-            ledger.suggestedSettlements.map((route, i) => {
-              const from = personName(membersById.get(route.fromUserId));
-              const to = personName(membersById.get(route.toUserId));
-              return (
-                <View key={`${route.fromUserId}-${route.toUserId}-${i}`} style={styles.balanceRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.memberName}>{from} pays {to}</Text>
-                    <Text style={styles.mutedText}>{formatCurrencyLabel(route.currency)} {formatCurrency(route.amount, route.currency)}</Text>
-                  </View>
-                  {user?.id === route.fromUserId && (
-                    <Pressable style={[styles.primaryBtn, { paddingHorizontal: 14, paddingVertical: 10 }]} onPress={() => settle(route.fromUserId, route.toUserId, route.amount, route.currency)}>
-                      <Text style={styles.primaryBtnText}>Settle</Text>
-                    </Pressable>
-                  )}
-                </View>
-              );
-            })
-          )}
-        </View>
-
-        {loading ? (
-          <ActivityIndicator color={colors.accent} />
-        ) : groups.length === 0 ? (
-          <View style={styles.card}><Text style={styles.mutedText}>No groups yet. Create your first one.</Text></View>
-        ) : (
-          <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.cardTitle}>Groups</Text>
-                <Text style={styles.mutedText}>Pick a group only when you need group-specific balances or member management.</Text>
-              </View>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-              {groups.map((group) => (
-                <Pressable
-                  key={group.id}
-                  onPress={() => setSelectedGroupId(group.id)}
-                  style={[styles.groupCard, selectedGroupId === group.id && styles.groupCardActive]}
-                >
-                  <Text style={styles.groupName}>{group.emoji ? `${group.emoji} ` : ""}{group.name}</Text>
-                  <Text style={styles.groupMeta}>{group.members.length} members</Text>
-                  <Text style={[styles.balanceLine, { color: colors.danger }]}>
-                    You owe: {formatCurrency(group.stats.youOwe, group.stats.currency)}
-                  </Text>
-                  <Text style={[styles.balanceLine, { color: colors.success }]}>
-                    You are owed: {formatCurrency(group.stats.youAreOwed, group.stats.currency)}
-                  </Text>
-                  <Text style={[styles.balanceLine, { color: group.stats.net >= 0 ? colors.success : colors.danger }]}>
-                    Net: {formatCurrency(group.stats.net, group.stats.currency)}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {selectedGroup && (
-          <>
-            <View style={[styles.card, styles.memberSearchCard]}>
-              <View style={styles.sectionHeader}>
-                <View>
-                  <Text style={styles.cardTitle}>Add People to {selectedGroup.name}</Text>
-                  <Text style={styles.mutedText}>Search Cashsync users by name, email, or mobile. Contacts still help for invites.</Text>
-                </View>
-                {contacts.length === 0 && (
-                  <Pressable onPress={loadContacts} disabled={contactsLoading}>
-                    <Text style={{ color: colors.accent, fontSize: 13, fontWeight: "600" }}>
-                      {contactsLoading ? "Loading..." : "Sync Contacts"}
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-              <View style={styles.memberSearchWrap}>
-                <TextInput
-                  style={styles.input}
-                  value={memberEmail}
-                  onChangeText={setMemberEmail}
-                  onFocus={() => setIsInputFocused(true)}
-                  placeholder="Name, email, or phone"
-                  placeholderTextColor={colors.textMuted}
-                  autoCapitalize="none"
-                />
-                {selectedUsers.length > 0 && (
-                  <View style={styles.selectedUsersWrap}>
-                    <Text style={styles.selectedUsersLabel}>Selected people</Text>
-                    <View style={styles.selectedUsersInline}>
-                      {selectedUsers.map((selectedUser) => (
-                        <Pressable key={selectedUser.id} onPress={() => removeSelectedUser(selectedUser.id)} hitSlop={8} style={styles.selectedUserPill}>
-                          <View style={styles.selectedUserAvatar}>
-                            <Text style={styles.selectedUserAvatarText}>
-                              {(selectedUser.name || selectedUser.email).slice(0, 1).toUpperCase()}
-                            </Text>
-                          </View>
-                          <Text style={styles.selectedUserName}>
-                            {selectedUser.name || [selectedUser.firstName, selectedUser.lastName].filter(Boolean).join(" ") || selectedUser.email}
-                          </Text>
-                          <Text style={styles.selectedUserRemove}>x</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                )}
-                {searchingUsers && memberEmail.trim().length >= 2 && (
-                  <Text style={styles.searchStatus}>Searching Cashsync users...</Text>
-                )}
-              </View>
-
-              {inviteUser && (
-                <View style={[styles.inviteCard, { backgroundColor: colors.accentSoft }]}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
-                    {inviteUser.identifier} is not on Cashsync yet.
-                  </Text>
-                  <Pressable onPress={() => sendInvite(inviteUser.identifier, inviteUser.type)}>
-                    <Text style={{ color: colors.accent, fontWeight: "800", fontSize: 13, marginTop: 4 }}>
-                      Invite via {inviteUser.type === "phone" ? "SMS" : "Email"} →
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
-              <Pressable style={styles.primaryBtn} onPress={addMember} disabled={addingSelectedUsers}>
-                {addingSelectedUsers ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.primaryBtnText}>
-                    {selectedUsers.length > 0
-                      ? `Save ${selectedUsers.length} Selected`
-                      : searchResults.length > 0
-                        ? "Select From List"
-                        : "Add Person"}
-                  </Text>
-                )}
+        <View style={styles.screenHeader}>
+          <View style={styles.headerSide}>
+            {selectedGroup ? (
+              <Pressable style={styles.iconButton} onPress={() => {
+                setSelectedGroupId(null);
+                setOpenSettings(false);
+              }}>
+                <Ionicons name="chevron-back" size={20} color={colors.text} />
               </Pressable>
+            ) : (
+              <View style={styles.iconButtonGhost} />
+            )}
+          </View>
+          <View style={styles.headerCenter}>
+            <Text style={styles.title} numberOfLines={1}>
+              {selectedGroup ? selectedGroup.name : "Groups"}
+            </Text>
+            <Text style={styles.subtitle}>
+              {selectedGroup ? "Shared expenses and balances" : "Track shared circles like a modern split app"}
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
+            <Pressable style={styles.iconButton} onPress={() => setOpenExpense(true)}>
+              <Ionicons name="add" size={20} color={colors.text} />
+            </Pressable>
+            {selectedGroup ? (
+              <Pressable style={styles.iconButton} onPress={() => setOpenSettings(true)}>
+                <Ionicons name="settings-outline" size={18} color={colors.text} />
+              </Pressable>
+            ) : (
+              <Pressable style={styles.iconButton} onPress={() => setOpenCreate(true)}>
+                <Ionicons name="people-outline" size={18} color={colors.text} />
+              </Pressable>
+            )}
+          </View>
+        </View>
+
+        {!selectedGroup ? (
+          <>
+            {loading ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : groups.length === 0 ? (
+              <View style={styles.heroCard}>
+                <Text style={styles.heroTitle}>No groups yet</Text>
+                <Text style={styles.heroSubtitle}>Create your first shared circle and start adding missing expenses fast.</Text>
+                <Pressable style={styles.primaryBtn} onPress={() => setOpenCreate(true)}>
+                  <Text style={styles.primaryBtnText}>Create Group</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.listWrap}>
+                {groups.map((group) => (
+                  <Pressable key={group.id} style={styles.groupListCard} onPress={() => setSelectedGroupId(group.id)}>
+                    <View style={styles.groupListTop}>
+                      <View style={styles.groupBadge}>
+                        <Text style={styles.groupBadgeText}>{group.emoji || group.name.slice(0, 1).toUpperCase()}</Text>
+                      </View>
+                      <Text style={styles.groupMeta}>{group.members.length} members</Text>
+                    </View>
+                    <Text style={styles.groupName}>{group.name}</Text>
+                    <Text style={styles.mutedText} numberOfLines={2}>
+                      {group.description || "Add expenses, settle balances, and keep everyone aligned."}
+                    </Text>
+                    <View style={styles.groupStatsRow}>
+                      <View>
+                        <Text style={styles.statLabel}>You owe</Text>
+                        <Text style={[styles.statValue, { color: colors.danger }]}>{formatCurrency(group.stats.youOwe, group.stats.currency)}</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.statLabel}>Get back</Text>
+                        <Text style={[styles.statValue, { color: colors.success }]}>{formatCurrency(group.stats.youAreOwed, group.stats.currency)}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            <View style={styles.heroCard}>
+              <Text style={styles.heroTitle}>{selectedGroup.emoji ? `${selectedGroup.emoji} ` : ""}{selectedGroup.name}</Text>
+              <Text style={styles.heroSubtitle}>{selectedGroup.description || "Split expenses smoothly and keep balances clear for everyone."}</Text>
+              <View style={styles.heroStatsRow}>
+                <View style={styles.heroStatCard}>
+                  <Text style={styles.statLabel}>You owe</Text>
+                  <Text style={[styles.statValue, { color: colors.danger }]}>{formatCurrency(selectedGroup.stats.youOwe, selectedGroup.stats.currency)}</Text>
+                </View>
+                <View style={styles.heroStatCard}>
+                  <Text style={styles.statLabel}>Get back</Text>
+                  <Text style={[styles.statValue, { color: colors.success }]}>{formatCurrency(selectedGroup.stats.youAreOwed, selectedGroup.stats.currency)}</Text>
+                </View>
+              </View>
             </View>
 
             <View style={styles.card}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.cardTitle}>{selectedGroup.name} Balances</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Pressable 
-                    style={[styles.secondaryBtn, { paddingHorizontal: 10, paddingVertical: 6 }]} 
-                    onPress={() => setOpenEdit(true)}
-                  >
-                    <Text style={[styles.secondaryBtnText, { fontSize: 12 }]}>Edit</Text>
-                  </Pressable>
-                  <Pressable 
-                    style={[styles.secondaryBtn, { paddingHorizontal: 10, paddingVertical: 6, borderColor: colors.danger }]} 
-                    onPress={handleDeleteGroup}
-                  >
-                    <Text style={[styles.secondaryBtnText, { fontSize: 12, color: colors.danger }]}>Delete</Text>
-                  </Pressable>
+                <View>
+                  <Text style={styles.cardTitle}>Recent expenses</Text>
+                  <Text style={styles.mutedText}>The latest shared activity in this group.</Text>
                 </View>
+                <Pressable style={styles.iconTextBtn} onPress={() => setOpenExpense(true)}>
+                  <Text style={styles.iconTextBtnLabel}>Add expense</Text>
+                </Pressable>
               </View>
-              {ledger?.members.map((m) => {
-                const b = ledger.balances.find((balance) => balance.userId === m.userId);
-                const isMe = user?.id === m.userId;
-                return (
-                  <View key={m.userId} style={styles.balanceRow}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={styles.memberName}>{personName(m.user)}</Text>
-                        <View style={[styles.roleBadge, { backgroundColor: m.role === 'ADMIN' ? colors.accentSoft : colors.border }]}>
-                          <Text style={[styles.roleText, { color: m.role === 'ADMIN' ? colors.accent : colors.textMuted }]}>
-                            {m.role}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={[styles.mutedText, { color: (b?.net ?? 0) >= 0 ? colors.success : colors.danger }]}>
-                        {(b?.net ?? 0) >= 0 ? "+" : ""}{formatCurrency(b?.net ?? 0, b?.currency ?? ledger.currency)}
+              {loadingExpenses ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : groupExpenses.length === 0 ? (
+                <Text style={styles.mutedText}>No group expenses yet. Tap add expense to create the first one.</Text>
+              ) : (
+                groupExpenses.map((expense) => (
+                  <View key={expense.id} style={styles.expenseRow}>
+                    <View style={styles.expenseAvatar}>
+                      <Ionicons name="receipt-outline" size={16} color={colors.accent} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.memberName} numberOfLines={1}>{expense.title}</Text>
+                      <Text style={styles.mutedText} numberOfLines={1}>
+                        Paid by {personName(ledger?.members.find((member) => member.userId === expense.authorId)?.user)} • {new Date(expense.date).toLocaleDateString()}
                       </Text>
                     </View>
-                    
-                    {!isMe && (
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <Pressable 
-                          style={styles.actionIcon} 
-                          onPress={() => handleUpdateMemberRole(m.userId, m.role === 'ADMIN' ? 'MEMBER' : 'ADMIN')}
-                        >
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.accent }}>ROLE</Text>
-                        </Pressable>
-                        <Pressable 
-                          style={styles.actionIcon} 
-                          onPress={() => handleRemoveMember(m.userId)}
-                        >
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.danger }}>REMOVE</Text>
-                        </Pressable>
-                      </View>
-                    )}
+                    <Text style={styles.expenseAmount}>{formatCurrency(expense.amount, expense.currency)}</Text>
                   </View>
-                );
-              })}
+                ))
+              )}
             </View>
 
+            <View style={styles.card}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={styles.cardTitle}>Simplified debt</Text>
+                  <Text style={styles.mutedText}>Fastest way to settle the group.</Text>
+                </View>
+              </View>
+              {loadingLedger ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : !ledger || ledger.suggestedSettlements.length === 0 ? (
+                <Text style={styles.mutedText}>No pending balances. Everyone is settled up.</Text>
+              ) : (
+                ledger.suggestedSettlements.map((route, i) => {
+                  const from = personName(membersById.get(route.fromUserId));
+                  const to = personName(membersById.get(route.toUserId));
+                  return (
+                    <View key={`${route.fromUserId}-${route.toUserId}-${i}`} style={styles.memberListRow}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.memberName}>{from} pays {to}</Text>
+                        <Text style={styles.mutedText}>{formatCurrencyLabel(route.currency)}</Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end", gap: 8 }}>
+                        <Text style={styles.memberAmountCompact}>{formatCurrency(route.amount, route.currency)}</Text>
+                        {user?.id === route.fromUserId && (
+                          <Pressable style={styles.iconTextBtn} onPress={() => settle(route.fromUserId, route.toUserId, route.amount, route.currency)}>
+                            <Text style={styles.iconTextBtnLabel}>Settle</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
           </>
         )}
       </ScrollView>
@@ -867,6 +1380,69 @@ export default function GroupsScreen() {
           onClose={() => setOpenEdit(false)}
           group={selectedGroup}
           onDone={loadGroups}
+        />
+      )}
+
+      {user && (
+        <CommonExpenseModal
+          visible={openExpense}
+          onClose={() => setOpenExpense(false)}
+          authorId={user.id}
+          groups={groups}
+          friendCandidates={allUsers}
+          initialGroupId={selectedGroupId}
+          onDone={() => {
+            void Promise.all([loadGroups(), loadLedger(), loadFriends(), loadGroupExpenses()]);
+          }}
+        />
+      )}
+
+      {selectedGroup && (
+        <GroupSettingsModal
+          visible={openSettings}
+          onClose={() => setOpenSettings(false)}
+          group={selectedGroup}
+          ledger={ledger}
+          userId={user?.id}
+          memberEmail={memberEmail}
+          selectedUsers={selectedUsers}
+          inviteUser={inviteUser}
+          contacts={contacts}
+          contactsLoading={contactsLoading}
+          addingSelectedUsers={addingSelectedUsers}
+          searchingUsers={searchingUsers}
+          onOpenEdit={() => {
+            setOpenSettings(false);
+            setOpenEdit(true);
+          }}
+          onDeleteGroup={handleDeleteGroup}
+          onLeaveGroup={handleLeaveGroup}
+          onOpenMember={(userId) => setActiveMemberId(userId)}
+          onMemberEmailChange={setMemberEmail}
+          onFocusMemberInput={() => setIsInputFocused(true)}
+          onLoadContacts={loadContacts}
+          onRemoveSelectedUser={removeSelectedUser}
+          onAddMember={addMember}
+          onInvite={sendInvite}
+        />
+      )}
+
+      {selectedGroup && (
+        <MemberDetailModal
+          visible={!!activeMember}
+          onClose={() => setActiveMemberId(null)}
+          groupName={selectedGroup.name}
+          member={activeMember}
+          balance={activeMemberBalance}
+          onRemove={async () => {
+            if (!activeMember) return;
+            await handleRemoveMember(activeMember.userId);
+            setActiveMemberId(null);
+          }}
+          onToggleRole={async () => {
+            if (!activeMember) return;
+            await handleUpdateMemberRole(activeMember.userId, activeMember.role === "ADMIN" ? "MEMBER" : "ADMIN");
+          }}
         />
       )}
 
@@ -890,13 +1466,300 @@ export default function GroupsScreen() {
 const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
   StyleSheet.create({
     scroll: {
-      paddingHorizontal: 18,
+      paddingHorizontal: 16,
       paddingTop: Platform.OS === "web" ? 40 : 58,
       paddingBottom: 110,
       gap: 16,
       maxWidth: 760,
       width: "100%",
       alignSelf: "center",
+    },
+    screenHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    headerSide: {
+      width: 42,
+    },
+    headerCenter: {
+      flex: 1,
+      minWidth: 0,
+    },
+    headerActions: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    iconButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    iconButtonGhost: {
+      width: 42,
+      height: 42,
+    },
+    heroCard: {
+      borderRadius: 28,
+      padding: 20,
+      gap: 14,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    heroTitle: {
+      color: colors.text,
+      fontSize: 24,
+      fontWeight: "800",
+      letterSpacing: -0.4,
+    },
+    heroSubtitle: {
+      color: colors.textMuted,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+    heroStatsRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    heroStatCard: {
+      flex: 1,
+      minWidth: 0,
+      borderRadius: 18,
+      padding: 14,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    listWrap: {
+      gap: 12,
+    },
+    groupListCard: {
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      padding: 18,
+      gap: 12,
+    },
+    groupListTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 12,
+    },
+    groupBadge: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: colors.accentSoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    groupBadgeText: {
+      color: colors.accent,
+      fontWeight: "800",
+      fontSize: 16,
+    },
+    groupStatsRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    statLabel: {
+      color: colors.textMuted,
+      fontSize: 12,
+      marginBottom: 4,
+    },
+    statValue: {
+      fontSize: 15,
+      fontWeight: "800",
+    },
+    modalTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    segmentRow: {
+      flexDirection: "row",
+      backgroundColor: colors.background,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 4,
+      gap: 4,
+    },
+    segmentButton: {
+      flex: 1,
+      borderRadius: 10,
+      paddingVertical: 10,
+      alignItems: "center",
+    },
+    segmentButtonActive: {
+      backgroundColor: colors.accentSoft,
+    },
+    segmentText: {
+      color: colors.textMuted,
+      fontWeight: "700",
+    },
+    segmentTextActive: {
+      color: colors.accent,
+    },
+    sheetLabel: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    inlineScroll: {
+      gap: 8,
+      paddingVertical: 2,
+    },
+    compactChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+    },
+    compactChipActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    compactChipText: {
+      color: colors.textMuted,
+      fontWeight: "600",
+    },
+    compactChipTextActive: {
+      color: colors.accent,
+    },
+    wrapRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    personPill: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    personPillActive: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    personPillText: {
+      color: colors.textMuted,
+      fontWeight: "600",
+    },
+    personPillTextActive: {
+      color: colors.accent,
+      fontWeight: "700",
+    },
+    expenseRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: `${colors.border}66`,
+    },
+    expenseAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.accentSoft,
+    },
+    expenseAmount: {
+      color: colors.text,
+      fontWeight: "800",
+      fontSize: 14,
+    },
+    settingsBlock: {
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: `${colors.border}CC`,
+      backgroundColor: colors.background,
+      padding: 14,
+      gap: 12,
+    },
+    iconTextBtn: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: colors.input,
+    },
+    iconTextBtnLabel: {
+      color: colors.text,
+      fontWeight: "700",
+      fontSize: 12,
+    },
+    linkText: {
+      color: colors.accent,
+      fontWeight: "700",
+      fontSize: 13,
+    },
+    memberListRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: `${colors.border}55`,
+    },
+    memberAmountCompact: {
+      maxWidth: 120,
+      textAlign: "right",
+      color: colors.text,
+      fontWeight: "700",
+      fontSize: 12,
+    },
+    memberProfileCard: {
+      borderRadius: 18,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      gap: 6,
+    },
+    memberProfileAmount: {
+      color: colors.text,
+      fontSize: 20,
+      fontWeight: "800",
+    },
+    settingAction: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      padding: 16,
+      gap: 4,
+    },
+    settingActionText: {
+      color: colors.text,
+      fontWeight: "700",
+      fontSize: 15,
+    },
+    settingActionSubtext: {
+      color: colors.textMuted,
+      fontSize: 12,
+      lineHeight: 17,
     },
     header: {
       flexDirection: "row",

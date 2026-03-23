@@ -18,6 +18,7 @@ class TransactionController extends BaseController {
     async (ctx) => {
       const query = ctx.query as {
         userId?: string;
+        groupId?: string;
         limit?: string;
         offset?: string;
         category?: string;
@@ -31,6 +32,7 @@ class TransactionController extends BaseController {
 
       const result = await transactionService.getAll({
         userId: query.userId,
+        groupId: query.groupId,
         category: query.category,
         type: query.type,
         source: query.source,
@@ -208,4 +210,3 @@ class TransactionController extends BaseController {
 }
 
 export const transactionController = new TransactionController();
-

@@ -5,6 +5,7 @@ import { prisma } from '../../lib/db';
 
 export interface TransactionFilters {
     userId?: string;
+    groupId?: string;
     category?: string;
     type?: string;
     source?: string;
@@ -39,6 +40,7 @@ export const transactionRepository = {
     findMany(filters: TransactionFilters) {
         const where: any = {};
         if (filters.userId) where.authorId = filters.userId;
+        if (filters.groupId) where.groupId = filters.groupId;
         if (filters.category) where.category = filters.category;
         if (filters.type) where.type = filters.type;
         if (filters.source) where.source = filters.source;

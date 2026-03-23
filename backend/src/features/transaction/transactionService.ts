@@ -85,6 +85,7 @@ export const transactionService = {
 
     async getAll(params: {
         userId?: string;
+        groupId?: string;
         limit?: number;
         offset?: number;
         category?: string;
@@ -100,6 +101,7 @@ export const transactionService = {
 
         const [transactions, total] = await transactionRepository.findMany({
             userId: params.userId,
+            groupId: params.groupId,
             category: params.category,
             type: params.type,
             source: params.source,

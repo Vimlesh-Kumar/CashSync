@@ -72,6 +72,7 @@ export const getTransactions = async (
     opts: {
         limit?: number;
         offset?: number;
+        groupId?: string;
         category?: string;
         type?: string;
         source?: string;
@@ -82,6 +83,7 @@ export const getTransactions = async (
     } = {}
 ): Promise<{ transactions: Transaction[]; total: number }> => {
     const params = new URLSearchParams({ userId, limit: String(opts.limit || 50), offset: String(opts.offset || 0) });
+    if (opts.groupId) params.set('groupId', opts.groupId);
     if (opts.category) params.set('category', opts.category);
     if (opts.type) params.set('type', opts.type);
     if (opts.source) params.set('source', opts.source);
