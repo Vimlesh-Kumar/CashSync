@@ -11,7 +11,16 @@ async function req<T>(url: string, options?: RequestInit): Promise<T> {
         throw new Error(err.error || `Request failed: ${res.status}`);
     }
 
-    return res.json();
+    if (res.status === 204) {
+        return undefined as T;
+    }
+
+    const text = await res.text();
+    if (!text) {
+        return undefined as T;
+    }
+
+    return JSON.parse(text) as T;
 }
 
 export interface GroupMember {
@@ -19,6 +28,16 @@ export interface GroupMember {
     userId: string;
     role: 'ADMIN' | 'MEMBER';
     user: { id: string; name?: string; email: string; avatarUrl?: string };
+}
+
+export interface GroupSearchUser {
+    id: string;
+    name?: string | null;
+    email: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
 }
 
 export interface GroupSummary {
@@ -61,8 +80,37 @@ export const createGroup = (data: {
     emoji?: string;
 }) => req('/groups', { method: 'POST', body: JSON.stringify(data) });
 
-export const addGroupMember = (groupId: string, data: { userId?: string; email?: string; phone?: string; role?: 'ADMIN' | 'MEMBER' }) =>
+export const addGroupMember = (groupId: string, data: { userIds?: string[]; emails?: string[]; phones?: string[]; role?: 'ADMIN' | 'MEMBER' }) =>
     req(`/groups/${groupId}/members`, { method: 'POST', body: JSON.stringify(data) });
+
+export const getGroup = (groupId: string): Promise<GroupLedger['group'] & { members: GroupMember[] }> =>
+    req(`/groups/${groupId}`);
+
+export const updateGroup = (groupId: string, data: { name?: string; description?: string; emoji?: string }) =>
+    req(`/groups/${groupId}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deleteGroup = (groupId: string) =>
+    req(`/groups/${groupId}`, { method: 'DELETE' });
+
+export const getGroupMembers = (groupId: string): Promise<GroupMember[]> =>
+    req(`/groups/${groupId}/members`);
+
+export const updateGroupMember = (groupId: string, userId: string, data: { role: 'ADMIN' | 'MEMBER' }) =>
+    req(`/groups/${groupId}/members/${userId}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const removeGroupMember = (groupId: string, userId: string) =>
+    req(`/groups/${groupId}/members/${userId}`, { method: 'DELETE' });
+
+export const searchGroupUsers = (
+    query: string,
+    options?: { excludeGroupId?: string; limit?: number }
+): Promise<GroupSearchUser[]> => {
+    const params = new URLSearchParams({ q: query });
+    if (options?.excludeGroupId) params.set('excludeGroupId', options.excludeGroupId);
+    if (options?.limit) params.set('limit', String(options.limit));
+    const url = `/users/search?${params.toString()}`;
+    return req(url);
+};
 
 export const getGroupLedger = (groupId: string, userId?: string): Promise<GroupLedger> =>
     req(`/groups/${groupId}/ledger${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);

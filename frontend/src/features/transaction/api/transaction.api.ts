@@ -72,6 +72,7 @@ export const getTransactions = async (
     opts: {
         limit?: number;
         offset?: number;
+        groupId?: string;
         category?: string;
         type?: string;
         source?: string;
@@ -82,6 +83,7 @@ export const getTransactions = async (
     } = {}
 ): Promise<{ transactions: Transaction[]; total: number }> => {
     const params = new URLSearchParams({ userId, limit: String(opts.limit || 50), offset: String(opts.offset || 0) });
+    if (opts.groupId) params.set('groupId', opts.groupId);
     if (opts.category) params.set('category', opts.category);
     if (opts.type) params.set('type', opts.type);
     if (opts.source) params.set('source', opts.source);
@@ -123,6 +125,14 @@ export const updateTransaction = async (
 export const deleteTransaction = async (id: string): Promise<{ success: boolean }> =>
     req(`/transactions/${id}`, { method: 'DELETE' });
 
+/**
+ *  Ingests a raw SMS message to create a transaction. The backend will attempt to parse the SMS content to extract transaction details.
+ * @param rawSms The raw SMS message content to be ingested.
+ * @param authorId The ID of the user who is the author of the transaction. This is used for associating the created transaction with the correct user.
+ * @returns A promise that resolves to the created Transaction object. If the SMS is identified as a duplicate of an existing transaction, the returned object will include a `deduplicated` flag set to true.
+ * @throws An error if the ingestion process fails, such as if the SMS content cannot be parsed or if there is a server error.
+ * @remarks This function is typically used in the context of SMS auto-sync features, where incoming SMS messages are automatically processed to create transactions without user intervention. The backend will implement logic to handle parsing and deduplication based on the content of the SMS and existing transactions.
+ */
 export const ingestSms = async (rawSms: string, authorId: string): Promise<Transaction & { deduplicated?: boolean }> =>
     req('/transactions/sms', { method: 'POST', body: JSON.stringify({ rawSms, authorId }) });
 

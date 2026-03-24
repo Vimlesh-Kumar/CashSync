@@ -19,6 +19,7 @@ vi.mock('../../user/userRepository', () => ({
   userRepository: {
     findById: vi.fn(),
     findByEmail: vi.fn(),
+    findByPhone: vi.fn(),
   },
 }));
 
@@ -91,33 +92,59 @@ describe('GroupService', () => {
       await expect(groupService.addMember('g1', { role: 'MEMBER' })).rejects.toThrow('Group not found.');
     });
 
-    it('should add member by userId', async () => {
+    it('should add member by userIds', async () => {
       vi.mocked(groupRepository.findById).mockResolvedValue({ id: 'g1', members: [] } as any);
-      await groupService.addMember('g1', { userId: 'u1', role: 'MEMBER' });
+      await groupService.addMember('g1', { userIds: ['u1'], role: 'MEMBER' } as any);
       expect(groupRepository.addMember).toHaveBeenCalledWith('g1', 'u1', 'MEMBER');
     });
 
-    it('should add member by email if user found', async () => {
+    it('should add multiple members by userIds', async () => {
+      vi.mocked(groupRepository.findById).mockResolvedValue({ id: 'g1', members: [] } as any);
+      vi.mocked(groupRepository.addMember)
+        .mockResolvedValueOnce({ userId: 'u1' } as any)
+        .mockResolvedValueOnce({ userId: 'u2' } as any);
+
+      const result = await groupService.addMember('g1', { userIds: ['u1', 'u2'], role: 'MEMBER' } as any);
+
+      expect(groupRepository.addMember).toHaveBeenNthCalledWith(1, 'g1', 'u1', 'MEMBER');
+      expect(groupRepository.addMember).toHaveBeenNthCalledWith(2, 'g1', 'u2', 'MEMBER');
+      expect(result).toHaveLength(2);
+    });
+
+    it('should add member by emails if user found', async () => {
       vi.mocked(groupRepository.findById).mockResolvedValue({ id: 'g1', members: [] } as any);
       vi.mocked(userRepository.findByEmail).mockResolvedValue({ id: 'u2' } as any);
-      await groupService.addMember('g1', { email: 'test@test.com', role: 'MEMBER' });
+      await groupService.addMember('g1', { emails: ['test@test.com'], role: 'MEMBER' } as any);
       expect(groupRepository.addMember).toHaveBeenCalledWith('g1', 'u2', 'MEMBER');
     });
 
     it('should throw if email provided but user not found', async () => {
       vi.mocked(groupRepository.findById).mockResolvedValue({ id: 'g1', members: [] } as any);
       vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
-      await expect(groupService.addMember('g1', { email: 'x@x.com', role: 'MEMBER' })).rejects.toThrow('No user found with this email.');
+      await expect(groupService.addMember('g1', { emails: ['x@x.com'], role: 'MEMBER' } as any)).rejects.toThrow('User with email not found.');
     });
 
-    it('should throw if neither userId nor email resolved', async () => {
+    it('should add member by phones if user found', async () => {
+      vi.mocked(groupRepository.findById).mockResolvedValue({ id: 'g1', members: [] } as any);
+      vi.mocked(userRepository.findByPhone).mockResolvedValue({ id: 'u3' } as any);
+      await groupService.addMember('g1', { phones: ['+911234567890'], role: 'MEMBER' } as any);
+      expect(groupRepository.addMember).toHaveBeenCalledWith('g1', 'u3', 'MEMBER');
+    });
+
+    it('should throw if neither userIds nor emails resolved', async () => {
       vi.mocked(groupRepository.findById).mockResolvedValue({ id: 'g1', members: [] } as any);
       await expect(groupService.addMember('g1', { role: 'MEMBER' })).rejects.toThrow('Unable to resolve user');
     });
 
     it('should throw if already a member', async () => {
       vi.mocked(groupRepository.findById).mockResolvedValue({ id: 'g1', members: [{ userId: 'u1' }] } as any);
-      await expect(groupService.addMember('g1', { userId: 'u1', role: 'MEMBER' })).rejects.toThrow('already a group member');
+      await expect(groupService.addMember('g1', { userIds: ['u1'], role: 'MEMBER' } as any)).rejects.toThrow('already group members');
+    });
+
+    it('should throw if one of multiple users is already a member', async () => {
+      vi.mocked(groupRepository.findById).mockResolvedValue({ id: 'g1', members: [{ userId: 'u1' }] } as any);
+      await expect(groupService.addMember('g1', { userIds: ['u1', 'u2'], role: 'MEMBER' } as any))
+        .rejects.toThrow('already group members');
     });
   });
 

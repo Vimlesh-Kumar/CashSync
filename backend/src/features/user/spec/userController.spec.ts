@@ -5,6 +5,7 @@ import { userService } from '../userService';
 vi.mock('../userService', () => ({
   userService: {
     getAllUsers: vi.fn(),
+    searchUsers: vi.fn(),
     getProfile: vi.fn(),
     updateUser: vi.fn(),
     deleteUser: vi.fn(),
@@ -42,6 +43,18 @@ describe('UserController', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith(mockUsers);
+    });
+  });
+
+  describe('searchUsers', () => {
+    it('should return search results', async () => {
+      mockReq.query = { q: 'john' };
+      vi.mocked(userService.searchUsers).mockResolvedValue([{ id: '1' }] as any);
+
+      await userController.searchUsers(mockReq, mockRes, vi.fn());
+
+      expect(userService.searchUsers).toHaveBeenCalledWith({ q: 'john' });
+      expect(mockRes.status).toHaveBeenCalledWith(200);
     });
   });
 

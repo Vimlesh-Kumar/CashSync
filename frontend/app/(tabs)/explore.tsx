@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 
+import { CurrencyFlag } from "@/src/components/CurrencyFlag";
 import { useAuth } from "@/src/context/AuthContext";
 import { useAppTheme } from "@/src/context/ThemeContext";
 import { getGroups, GroupSummary } from "@/src/features/group";
@@ -1070,7 +1071,10 @@ function CreateTransactionModal({
                 onPress={() => setCurrency(option)}
                 style={[r.choicePill, currency === option && r.choicePillActive]}
               >
-                <Text style={[r.choiceTitle, currency === option && r.choiceTitleActive]}>{option}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <CurrencyFlag currency={option} size={16} />
+                  <Text style={[r.choiceTitle, currency === option && r.choiceTitleActive]}>{normalizeCurrency(option)}</Text>
+                </View>
               </Pressable>
             ))}
           </ScrollView>

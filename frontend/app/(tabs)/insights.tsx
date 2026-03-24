@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 
+import { CurrencyFlag } from '@/src/components/CurrencyFlag';
 import { useAuth } from '@/src/context/AuthContext';
 import { useAppTheme } from '@/src/context/ThemeContext';
 import { getBudgets } from '@/src/features/budget';
@@ -90,6 +91,10 @@ export default function InsightsScreen() {
       <LinearGradient colors={colors.gradient} style={StyleSheet.absoluteFill} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.heading}>Insights</Text>
+        <View style={styles.currencyBadgeRow}>
+          <CurrencyFlag currency={summaryCurrency} size={16} />
+          <Text style={styles.currencyBadge}>{normalizeCurrency(summaryCurrency)}</Text>
+        </View>
 
         <View style={styles.grid}>
           <MetricCard title="Income" value={formatCurrency(stats?.income || 0, summaryCurrency)} color={colors.success} styles={styles} />
@@ -161,6 +166,8 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) => Style
     gap: 12,
   },
   heading: { color: colors.text, fontSize: 27, fontWeight: '800', marginBottom: 8 },
+  currencyBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  currencyBadge: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   metricCard: {
     width: '48%',

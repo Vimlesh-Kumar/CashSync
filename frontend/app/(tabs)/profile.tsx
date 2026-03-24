@@ -1,3 +1,5 @@
+import * as Contacts from "expo-contacts";
+import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -5,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -15,13 +18,22 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { CurrencyFlag } from "@/src/components/CurrencyFlag";
 import { useAuth } from "@/src/context/AuthContext";
 import { ThemePreference, useAppTheme } from "@/src/context/ThemeContext";
 import { createBudget, getBudgets, updateBudget } from "@/src/features/budget";
 import { CategoryItem, createCategory, getCategories } from "@/src/features/category";
 import { updateUser } from "@/src/features/user";
 import { getExportUrl, getLiveRates, LiveRates } from "@/src/features/activity/api/activity.api";
-import { formatCurrency, normalizeCurrency, SUPPORTED_CURRENCIES } from "@/src/lib/currency";
+import {
+  getSmsAutoSyncEnabled,
+  getSmsPermissionState,
+  requestSmsPermission,
+  setSmsAutoSyncEnabled,
+  SmsPermissionState,
+} from "@/src/features/transaction/smsAutoSync";
+import { formatCurrency, getCurrencyMeta, inferCurrencyFromCountry, normalizeCurrency } from "@/src/lib/currency";
+import { COUNTRY_OPTIONS } from "@/src/lib/countries";
 
 const BUILT_IN_BUDGET_CATEGORIES = [
   "Food & Groceries",
@@ -42,6 +54,21 @@ type BudgetCategoryOption = {
   categoryId: string | null;
 };
 
+type PermissionState = "unknown" | "granted" | "denied";
+
+function formatPermissionState(state: PermissionState) {
+  if (state === "granted") return "Granted";
+  if (state === "denied") return "Denied";
+  return "Not requested";
+}
+
+function formatSmsPermissionState(state: SmsPermissionState) {
+  if (state === "granted") return "Granted";
+  if (state === "denied") return "Denied";
+  if (state === "unsupported") return "Android only";
+  return "Not requested";
+}
+
 export default function ProfileScreen() {
   const { user, signOut, updateCurrentUser } = useAuth();
   const { colors, preference, setPreference } = useAppTheme();
@@ -55,7 +82,15 @@ export default function ProfileScreen() {
   const [selectedBudgetCategoryId, setSelectedBudgetCategoryId] = useState<string | null>(null);
   const [selectedBudgetCategoryName, setSelectedBudgetCategoryName] = useState<string | null>(null);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
-  const [savingDefaultCurrency, setSavingDefaultCurrency] = useState(false);
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string>("IN");
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+  const [countryQuery, setCountryQuery] = useState("");
+  const [locationPermission, setLocationPermission] = useState<PermissionState>("unknown");
+  const [contactsPermission, setContactsPermission] = useState<PermissionState>("unknown");
+  const [permissionLoading, setPermissionLoading] = useState<"location" | "contacts" | null>(null);
+  const [smsPermission, setSmsPermission] = useState<SmsPermissionState>("unknown");
+  const [smsAutoSyncEnabled, setSmsAutoSyncState] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [liveRates, setLiveRates] = useState<LiveRates | null>(null);
   const [ratesLoading, setRatesLoading] = useState(false);
@@ -82,6 +117,51 @@ export default function ProfileScreen() {
       void load();
     }, [load]),
   );
+
+  useEffect(() => {
+    let active = true;
+    const loadPermissionState = async () => {
+      try {
+        const [locationRes, contactsRes] = await Promise.all([
+          Location.getForegroundPermissionsAsync(),
+          Contacts.getPermissionsAsync(),
+        ]);
+        if (!active) return;
+        setLocationPermission(locationRes.status === "granted" ? "granted" : locationRes.status === "denied" ? "denied" : "unknown");
+        setContactsPermission(contactsRes.status === "granted" ? "granted" : contactsRes.status === "denied" ? "denied" : "unknown");
+      } catch {
+      }
+    };
+    void loadPermissionState();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadSmsState = async () => {
+      try {
+        const [enabled, permission] = await Promise.all([
+          getSmsAutoSyncEnabled(),
+          getSmsPermissionState(),
+        ]);
+        if (!active) return;
+        setSmsAutoSyncState(enabled);
+        setSmsPermission(permission);
+      } catch {
+      }
+    };
+    void loadSmsState();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    setSelectedCountryCode(getCurrencyMeta(user.defaultCurrency).countryCode);
+  }, [user]);
 
   const budgetCategoryOptions: BudgetCategoryOption[] = [
     ...BUILT_IN_BUDGET_CATEGORIES.map((name) => ({
@@ -117,6 +197,113 @@ export default function ProfileScreen() {
     setSelectedBudgetCategoryName(budget.category?.name ?? budget.categoryLabel ?? null);
   };
 
+  const applyDefaultCurrency = useCallback(async (currency: string, countryCode?: string) => {
+    if (!user) return;
+    await updateUser(user.id, { defaultCurrency: currency });
+    await updateCurrentUser({ defaultCurrency: currency });
+    if (countryCode) {
+      setSelectedCountryCode(countryCode.toUpperCase());
+    }
+  }, [updateCurrentUser, user]);
+
+  const requestLocationCurrency = useCallback(async () => {
+    if (!user) return;
+    try {
+      setPermissionLoading("location");
+      const permission = await Location.requestForegroundPermissionsAsync();
+      const nextState: PermissionState =
+        permission.status === "granted" ? "granted" : permission.status === "denied" ? "denied" : "unknown";
+      setLocationPermission(nextState);
+      if (permission.status !== "granted") {
+        Alert.alert("Location not granted", "CashSync could not access your location, so your currency was not changed.");
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const places = await Location.reverseGeocodeAsync(position.coords);
+      const countryCode = places[0]?.isoCountryCode ?? null;
+      const inferredCurrency = inferCurrencyFromCountry(countryCode);
+      await applyDefaultCurrency(inferredCurrency, countryCode ?? undefined);
+      Alert.alert(
+        "Default currency updated",
+        countryCode
+          ? `CashSync detected ${countryCode} and set your default currency to ${inferredCurrency}.`
+          : `CashSync updated your default currency to ${inferredCurrency}.`,
+      );
+    } catch (error) {
+      console.error("Failed to update default currency from location", error);
+      Alert.alert("Could not use location", "Please try again or choose a currency manually.");
+    } finally {
+      setPermissionLoading(null);
+    }
+  }, [applyDefaultCurrency, user]);
+
+  const requestContactsPermission = useCallback(async () => {
+    try {
+      setPermissionLoading("contacts");
+      const permission = await Contacts.requestPermissionsAsync();
+      const nextState: PermissionState =
+        permission.status === "granted" ? "granted" : permission.status === "denied" ? "denied" : "unknown";
+      setContactsPermission(nextState);
+      if (permission.status === "granted") {
+        Alert.alert("Contacts enabled", "You can now sync contacts from the Groups tab to find friends faster.");
+      } else {
+        Alert.alert("Contacts not granted", "CashSync cannot suggest friends from your address book until you allow contacts access.");
+      }
+    } catch (error) {
+      console.error("Failed to request contacts permission", error);
+      Alert.alert("Could not request contacts access", "Please try again.");
+    } finally {
+      setPermissionLoading(null);
+    }
+  }, []);
+
+  const toggleSmsAutoSync = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      Alert.alert("Android only", "Incoming SMS auto-sync requires Android and a development build.");
+      return;
+    }
+
+    try {
+      setSmsLoading(true);
+      if (smsAutoSyncEnabled) {
+        await setSmsAutoSyncEnabled(false);
+        setSmsAutoSyncState(false);
+        Alert.alert("SMS auto-sync disabled", "CashSync will stop listening for new bank SMS messages.");
+        return;
+      }
+
+      const granted = await requestSmsPermission();
+      const nextPermission = await getSmsPermissionState();
+      setSmsPermission(granted ? "granted" : nextPermission === "unknown" ? "denied" : nextPermission);
+      if (!granted) {
+        Alert.alert("SMS permission not granted", "CashSync needs SMS access on Android to auto-detect incoming bank messages.");
+        return;
+      }
+
+      await setSmsAutoSyncEnabled(true);
+      setSmsAutoSyncState(true);
+      Alert.alert("SMS auto-sync enabled", "CashSync will listen for new incoming Android SMS messages and try to ingest supported bank alerts automatically.");
+    } catch (error) {
+      console.error("Failed to toggle SMS auto-sync", error);
+      Alert.alert("Could not update SMS auto-sync", "Please try again.");
+    } finally {
+      setSmsLoading(false);
+    }
+  }, [smsAutoSyncEnabled]);
+
+  const filteredCountries = COUNTRY_OPTIONS.filter((country) => {
+    const query = countryQuery.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      country.name.toLowerCase().includes(query)
+      || country.code.toLowerCase().includes(query)
+      || country.currency.toLowerCase().includes(query)
+    );
+  });
+
   if (!user) return null;
 
   return (
@@ -134,30 +321,103 @@ export default function ProfileScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Default Currency</Text>
           <Text style={styles.helperText}>This currency is used for new transactions and summaries.</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorRow}>
-            {SUPPORTED_CURRENCIES.map((currency) => {
-              const selected = normalizeCurrency(user.defaultCurrency) === currency;
-              return (
-                <Pressable
-                  key={currency}
-                  style={[styles.chip, selected && styles.chipActive, savingDefaultCurrency && { opacity: 0.7 }]}
-                  disabled={savingDefaultCurrency}
-                  onPress={async () => {
-                    if (selected) return;
-                    try {
-                      setSavingDefaultCurrency(true);
-                      await updateUser(user.id, { defaultCurrency: currency });
-                      await updateCurrentUser({ defaultCurrency: currency });
-                    } finally {
-                      setSavingDefaultCurrency(false);
-                    }
-                  }}
-                >
-                  <Text style={[styles.chipText, selected && styles.chipTextActive]}>{currency}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          <View style={styles.currencyHero}>
+            <CurrencyFlag currency={user.defaultCurrency} countryCode={selectedCountryCode} size={26} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.currencyHeroCode}>{normalizeCurrency(user.defaultCurrency)}</Text>
+              <Text style={styles.currencyHeroName}>
+                {COUNTRY_OPTIONS.find((country) => country.code === selectedCountryCode)?.name ?? getCurrencyMeta(user.defaultCurrency).name}
+                {" • "}
+                {getCurrencyMeta(user.defaultCurrency).name}
+              </Text>
+            </View>
+          </View>
+          <Pressable style={styles.dropdownTrigger} onPress={() => setCountryPickerOpen(true)}>
+            <View style={styles.dropdownTriggerLeft}>
+              <CurrencyFlag currency={user.defaultCurrency} countryCode={selectedCountryCode} size={18} />
+              <View>
+                <Text style={styles.dropdownTriggerTitle}>
+                  {COUNTRY_OPTIONS.find((country) => country.code === selectedCountryCode)?.name ?? "Choose Country"}
+                </Text>
+                <Text style={styles.dropdownTriggerMeta}>
+                  {normalizeCurrency(user.defaultCurrency)} • {getCurrencyMeta(user.defaultCurrency).name}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+          </Pressable>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Permissions</Text>
+          <Text style={styles.helperText}>
+            Allow CashSync to use location for country currency detection and contacts for friend suggestions.
+          </Text>
+
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionCopy}>
+              <Text style={styles.permissionTitle}>Location to set default currency</Text>
+              <Text style={styles.permissionMeta}>Status: {formatPermissionState(locationPermission)}</Text>
+            </View>
+            <Pressable
+              style={styles.actionBtn}
+              disabled={permissionLoading === "location"}
+              onPress={() => {
+                void requestLocationCurrency();
+              }}
+            >
+              {permissionLoading === "location" ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.actionBtnText}>Use Location</Text>
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionCopy}>
+              <Text style={styles.permissionTitle}>Contacts to sync friends</Text>
+              <Text style={styles.permissionMeta}>Status: {formatPermissionState(contactsPermission)}</Text>
+            </View>
+            <Pressable
+              style={styles.actionBtn}
+              disabled={permissionLoading === "contacts"}
+              onPress={() => {
+                void requestContactsPermission();
+              }}
+            >
+              {permissionLoading === "contacts" ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.actionBtnText}>Enable Contacts</Text>
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionCopy}>
+              <Text style={styles.permissionTitle}>Messages for auto-sync</Text>
+              <Text style={styles.permissionMeta}>
+                Status: {formatSmsPermissionState(smsPermission)} · {smsAutoSyncEnabled ? "Auto-sync on" : "Auto-sync off"}
+              </Text>
+              <Text style={styles.permissionMeta}>
+                Android dev build only. CashSync keeps clipboard auto-detect and can now listen for new incoming bank SMS messages when enabled.
+              </Text>
+            </View>
+            <Pressable
+              style={styles.actionBtn}
+              disabled={smsLoading}
+              onPress={() => {
+                void toggleSmsAutoSync();
+              }}
+            >
+              {smsLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.actionBtnText}>{smsAutoSyncEnabled ? "Disable SMS" : "Enable SMS"}</Text>
+              )}
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -399,7 +659,7 @@ export default function ProfileScreen() {
               )}
             </Pressable>
           </View>
-          <Text style={styles.helperText}>Live USD-based rates for 26+ currencies (cached 1hr).</Text>
+          <Text style={styles.helperText}>Live USD-based rates for 50+ currencies (cached 1hr).</Text>
           {liveRates && (
             <>
               <Text style={{ color: colors.textMuted, fontSize: 11 }}>Updated: {new Date(liveRates.updatedAt).toLocaleTimeString()}</Text>
@@ -428,6 +688,51 @@ export default function ProfileScreen() {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={countryPickerOpen} transparent animationType="slide" onRequestClose={() => setCountryPickerOpen(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.modalHead}>
+              <Text style={styles.cardTitle}>Choose Country</Text>
+              <Pressable onPress={() => setCountryPickerOpen(false)}>
+                <Text style={styles.secondaryBtnText}>Close</Text>
+              </Pressable>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Search country or currency"
+              placeholderTextColor={colors.textMuted}
+              value={countryQuery}
+              onChangeText={setCountryQuery}
+            />
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {filteredCountries.map((country) => {
+                const selected = country.code === selectedCountryCode;
+                return (
+                  <Pressable
+                    key={country.code}
+                    style={[styles.countryRow, selected && styles.countryRowActive]}
+                    onPress={async () => {
+                      await applyDefaultCurrency(country.currency, country.code);
+                      setCountryPickerOpen(false);
+                      setCountryQuery("");
+                    }}
+                  >
+                    <CurrencyFlag currency={country.currency} countryCode={country.code} size={20} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.countryRowTitle}>{country.name}</Text>
+                      <Text style={styles.countryRowMeta}>
+                        {country.currency} • {getCurrencyMeta(country.currency).name}
+                      </Text>
+                    </View>
+                    {selected ? <Ionicons name="checkmark-circle" size={18} color={colors.accent} /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -467,7 +772,87 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
     },
     cardTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
     helperText: { color: colors.textMuted, fontSize: 12 },
+    currencyHero: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      padding: 14,
+    },
+    currencyHeroCode: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: "800",
+    },
+    currencyHeroName: {
+      color: colors.textMuted,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    permissionRow: {
+      flexDirection: "row",
+      gap: 12,
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 12,
+      backgroundColor: colors.input,
+    },
+    permissionCopy: {
+      flex: 1,
+      gap: 4,
+    },
+    permissionTitle: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    permissionMeta: {
+      color: colors.textMuted,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    permissionNotice: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 12,
+      backgroundColor: colors.input,
+      gap: 4,
+    },
     selectorRow: { flexDirection: "row", gap: 8, paddingBottom: 2 },
+    dropdownTrigger: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    dropdownTriggerLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      flex: 1,
+    },
+    dropdownTriggerTitle: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    dropdownTriggerMeta: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 2,
+    },
     chip: {
       borderRadius: 999,
       borderWidth: 1,
@@ -475,6 +860,7 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       backgroundColor: colors.input,
       paddingHorizontal: 14,
       paddingVertical: 9,
+      gap: 2,
     },
     chipActive: {
       borderColor: colors.accent,
@@ -482,6 +868,9 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
     },
     chipText: { color: colors.textMuted, fontWeight: "700", fontSize: 12 },
     chipTextActive: { color: colors.accent },
+    chipLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    chipSubtext: { color: colors.textMuted, fontSize: 10 },
+    chipSubtextActive: { color: colors.accent },
     row: { flexDirection: "row", gap: 10, alignItems: "center" },
     input: {
       flex: 1,
@@ -580,6 +969,50 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
       justifyContent: "center",
       borderRadius: 16,
     },
+    pickerOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0, 0, 0, 0.45)",
+      justifyContent: "flex-end",
+    },
+    pickerSheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 20,
+      paddingBottom: 32,
+      gap: 12,
+      maxHeight: "78%",
+    },
+    modalHead: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    countryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.input,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    countryRowActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    countryRowTitle: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    countryRowMeta: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 2,
+    },
     exportBtn: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -602,4 +1035,3 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>["colors"]) =>
     rateCode: { color: colors.textMuted, fontSize: 10, fontWeight: "700" },
     rateValue: { color: colors.text, fontSize: 13, fontWeight: "800" },
   });
-

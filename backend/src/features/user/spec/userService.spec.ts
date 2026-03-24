@@ -9,6 +9,7 @@ vi.mock('../userRepository', () => ({
   userRepository: {
     findById: vi.fn(),
     findAll: vi.fn(),
+    search: vi.fn(),
     updateProfile: vi.fn(),
     delete: vi.fn(),
     findByEmail: vi.fn(),
@@ -77,6 +78,28 @@ describe('UserService', () => {
 
       expect(result).toEqual(mockUsers);
       expect(userRepository.findAll).toHaveBeenCalled();
+    });
+  });
+
+  describe('searchUsers', () => {
+    it('should return mapped search results with first and last names', async () => {
+      vi.mocked(userRepository.search).mockResolvedValue([
+        { id: '1', name: 'John Doe', email: 'john@example.com', phone: '+911234567890', avatarUrl: null },
+      ] as any);
+
+      const result = await userService.searchUsers({ q: 'john' });
+
+      expect(userRepository.search).toHaveBeenCalledWith('john', {
+        excludeGroupId: undefined,
+        limit: undefined,
+      });
+      expect(result).toEqual([
+        expect.objectContaining({
+          firstName: 'John',
+          lastName: 'Doe',
+          email: 'john@example.com',
+        }),
+      ]);
     });
   });
 

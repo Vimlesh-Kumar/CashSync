@@ -1,6 +1,6 @@
 import { groupRepository } from './groupRepository';
 import { convertAmount, DEFAULT_CURRENCY, normalizeCurrency, type CurrencyCode } from '../../lib/currency';
-import { AddGroupMemberRequest, CreateGroupRequest, SettleGroupDebtRequest } from './groupSchema';
+import { AddGroupMemberRequest, CreateGroupRequest, SettleGroupDebtRequest, UpdateGroupRequest } from './groupSchema';
 import { userRepository } from '../user/userRepository';
 import { activityService } from '../activity/activityService';
 
@@ -136,31 +136,51 @@ export const groupService = {
         return group;
     },
 
+    /**
+     * Add a member to a group
+     * @param groupId - The ID of the group
+     * @param data - The data of the member to be added
+     * @returns The updated group
+     */
     async addMember(groupId: string, data: AddGroupMemberRequest) {
         const group = await groupRepository.findById(groupId);
         if (!group) throw createHttpError(404, 'Group not found.');
 
-        let resolvedUserId = data.userId;
-        if (!resolvedUserId && (data.email || data.phone)) {
-            const user = data.email 
-                ? await userRepository.findByEmail(data.email)
-                : await userRepository.findByPhone(data.phone!);
-            
-            if (!user) {
-                // If not found, we throw a 404 with a specific message so frontend can handle invite
-                throw createHttpError(404, `User with ${data.email ? 'email' : 'phone'} not found.`);
+        const resolvedUserIds = new Set<string>(data.userIds ?? []);
+
+        if (data.emails?.length) {
+            for (const email of data.emails) {
+                const user = await userRepository.findByEmail(email);
+                if (!user) throw createHttpError(404, 'User with email not found.');
+                resolvedUserIds.add(user.id);
             }
-            resolvedUserId = user.id;
         }
 
-        if (!resolvedUserId) {
+        if (data.phones?.length) {
+            for (const phone of data.phones) {
+                const user = await userRepository.findByPhone(phone);
+                if (!user) throw createHttpError(404, 'User with phone not found.');
+                resolvedUserIds.add(user.id);
+            }
+        }
+
+        if (!resolvedUserIds.size) {
             throw createHttpError(400, 'Unable to resolve user for membership.');
         }
 
-        const exists = group.members.some((m: any) => m.userId === resolvedUserId);
-        if (exists) throw createHttpError(409, 'User is already a group member.');
+        const existingMemberIds = new Set(group.members.map((member: any) => member.userId));
+        const duplicateIds = [...resolvedUserIds].filter((userId) => existingMemberIds.has(userId));
 
-        return groupRepository.addMember(groupId, resolvedUserId, data.role);
+        if (duplicateIds.length) {
+            throw createHttpError(409, 'One or more users are already group members.');
+        }
+
+        const createdMembers = [];
+        for (const userId of resolvedUserIds) {
+            createdMembers.push(await groupRepository.addMember(groupId, userId, data.role));
+        }
+
+        return createdMembers.length === 1 ? createdMembers[0] : createdMembers;
     },
 
     async getLedger(groupId: string, userId?: string) {
@@ -225,7 +245,89 @@ export const groupService = {
         };
     },
 
+    /**
+     * Get a group by its ID
+     * @param id - The ID of the group
+     * @returns The group
+     */
+    async getById(id: string) {
+        const group = await groupRepository.findById(id);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return group;
+    },
+
+    /**
+     * Update a group's information
+     * @param id - The ID of the group
+     * @param data - The data to update
+     * @returns The updated group
+     */
+    async update(id: string, data: UpdateGroupRequest) {
+        const group = await groupRepository.findById(id);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return groupRepository.update(id, data);
+    },
+
+    /**
+     * Delete a group
+     * @param id - The ID of the group
+     * @returns The deleted group
+     */
+    async delete(id: string) {
+        const group = await groupRepository.findById(id);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return groupRepository.delete(id);
+    },
+
+    /**
+     * List all members of a group
+     * @param groupId - The ID of the group
+     * @returns A list of group members
+     */
+    async listMembers(groupId: string) {
+        const group = await groupRepository.findById(groupId);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return groupRepository.listMembers(groupId);
+    },
+
+    /**
+     * Update a member's role in a group
+     * @param groupId - The ID of the group
+     * @param userId - The ID of the user
+     * @param role - The new role (ADMIN or MEMBER)
+     * @returns The updated group member
+     */
+    async updateMember(groupId: string, userId: string, role: 'ADMIN' | 'MEMBER') {
+        const group = await groupRepository.findById(groupId);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        return groupRepository.updateMember(groupId, userId, role);
+    },
+
+    /**
+     * Remove a member from a group
+     * @param groupId - The ID of the group
+     * @param userId - The ID of the user
+     * @returns The removed group member
+     */
+    async removeMember(groupId: string, userId: string) {
+        const group = await groupRepository.findById(groupId);
+        if (!group) throw createHttpError(404, 'Group not found.');
+        
+        // Ensure at least one admin remains if the user being removed is an admin
+        const members = await groupRepository.listMembers(groupId);
+        const memberToRemove = members.find((m: any) => m.userId === userId);
+        if (memberToRemove?.role === 'ADMIN') {
+            const adminCount = members.filter((m: any) => m.role === 'ADMIN').length;
+            if (adminCount <= 1) {
+                throw createHttpError(400, 'Cannot remove the last admin from a group.');
+            }
+        }
+        
+        return groupRepository.removeMember(groupId, userId);
+    },
+
     async settleRoute(groupId: string, payload: SettleGroupDebtRequest) {
+
         const { fromUserId, toUserId, amount } = payload;
         let remaining = amount;
 
